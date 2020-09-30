@@ -160,8 +160,13 @@ if [ $UPDATEZSHRC -eq 1 ]; then
   echo "\n$ZSHRCINIT" >> $HOME/.zshrc
 fi
 
+cat $HOME/.env/starship.toml > $HOME/.config/starship.toml
+
 echo "\033[38;5;111mLoading changes to $HOME/.zshrc to shell\033[0m"
 zsh $HOME/.zshrc
+
+echo "\033[38;5;111mSet poetry virtualenvs to be stored in project\033[0m"
+poetry config virtualenvs.in-project true
 
 # zsh zinit self-update
 echo "\033[38;5;82mSetup Complete\033[0m"

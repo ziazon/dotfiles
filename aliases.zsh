@@ -19,6 +19,6 @@ alias ls="exa --ignore-glob __pycache__"
 alias ll='ls -la'
 alias diff="prettydiff"
 # alias ps="procs"
-alias tree="exa -Tla --extended --git-ignore"
+alias tree="exa -Tla --extended --git-ignore -I=.git"
 alias du='dust'
 alias ag='rg'

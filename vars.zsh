@@ -6,6 +6,8 @@ export GOROOT="$(brew --prefix golang)/libexec"
 
 export ZPLUG_HOME=/usr/local/opt/zplug
 
+export PGDATABASE=postgres
+
 # PATH
 PATH="/usr/local/sbin:$PATH"
 PATH="$HOME/.local/bin:$PATH"

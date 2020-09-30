@@ -1,0 +1,31 @@
+
+prompt_order = [
+    "username",
+    "hostname",
+    "directory",
+    "git_branch",
+    "git_state",
+    "git_status",
+    "package",
+    "nodejs",
+    "rust",
+    "nix_shell",
+    "memory_usage",
+    "env_var",
+    "cmd_duration",
+    "python",
+    "jobs",
+    "time",
+    "line_break",
+    "character",
+]
+
+[aws]
+disabled = true
+
+[package]
+disabled = true
+
+[python]
+only_display_in_virtualenv = true
+display_virtualenv = false

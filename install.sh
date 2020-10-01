@@ -18,7 +18,10 @@ brew cask install \
 docker \
 font-fira-code \
 font-source-code-pro-for-powerline \
+google-chrome \
+iterm2 \
 karabiner-elements \
+rectangle \
 virtualbox \
 xquartz
 

@@ -23,6 +23,7 @@ brew cask install iterm2
 brew cask install karabiner-elements
 brew cask install rectangle
 brew cask install virtualbox
+brew cask install visual-studio-code
 brew cask install xquartz
 
 brew install circleci

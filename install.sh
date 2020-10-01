@@ -17,6 +17,7 @@ brew install svn
 brew cask install docker
 brew cask install font-fira-code
 brew cask install font-source-code-pro-for-powerline
+brew cask install gpg-suite
 brew cask install google-chrome
 brew cask install iterm2
 brew cask install karabiner-elements

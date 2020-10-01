@@ -20,3 +20,8 @@ function docker-clean() {
 
   echo "Docker Cleanup complete!"
 }
+
+function backup-env-files() {
+  mkdir -p backups
+  find . -type f \( -name '.envrc' -o -name '.env' \) | sed -e 'p; s/\/\./-/g; s/\//-/g; s/\.-/backups\//g; s/\(.*\)-/\1\./' | xargs -n2 cp
+}

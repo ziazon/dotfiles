@@ -29,6 +29,7 @@ cookiecutter \
 ctags \
 direnv \
 docker-compose \
+findutils \
 fzf \
 fzy \
 gcc \

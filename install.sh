@@ -90,6 +90,8 @@ brew install zplug
 brew install zsh
 brew install zsh-completions
 
+git clone https://github.com/tmux-plugins/tpm ./.tmux/plugins/tpm
+
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
 
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.35.3/install.sh | bash
@@ -162,6 +164,20 @@ if [ $UPDATEZSHRC -eq 1 ]; then
   echo "\033[38;5;82mInstalling Env init to $HOME/.zshrc\033[0m"
   echo "\n$ZSHRCINIT" >> $HOME/.zshrc
 fi
+
+read -r -d '' TMUXCONF <<- EOM
+# List of plugins
+set -g @plugin 'tmux-plugins/tpm'
+set -g @plugin 'tmux-plugins/tmux-sensible'
+set -g @plugin 'tmux-plugins/tmux-resurrect'
+set -g @plugin 'tmux-plugins/tmux-continuum'
+set -g @plugin 'tmux-plugins/tmux-yank'
+set -g history-limit 10000
+# Initialize TMUX plugin manager (keep this line at the very bottom of tmux.conf)
+run '~/.env/.tmux/plugins/tpm/tpm'
+EOM
+
+echo "\n$TMUXCONF" >> $HOME/.tmux.conf
 
 cat $HOME/.env/starship.toml > $HOME/.config/starship.toml
 

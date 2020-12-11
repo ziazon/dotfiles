@@ -15,7 +15,7 @@ alias flushdns="sudo killall -HUP mDNSResponder;sudo killall mDNSResponderHelper
 alias python-env="python -m venv .venv"
 
 # alias cat="bat"
-alias ls="exa --ignore-glob __pycache__"
+alias ls="exa -g --ignore-glob __pycache__"
 alias ll='ls -la'
 alias diff="prettydiff"
 # alias ps="procs"

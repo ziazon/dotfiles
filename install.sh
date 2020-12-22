@@ -2,6 +2,9 @@
 
 touch $HOME/.zshrc
 
+sudo -v
+while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
+
 #install Homebrew
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
 
@@ -10,29 +13,41 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # install packages/libs
 brew tap johanhaleby/kubetail
+brew tap bramstein/webfonttools
 brew tap homebrew/cask-fonts
 
 brew install svn
 
-brew cask install docker
-brew cask install font-fira-code
-brew cask install font-source-code-pro-for-powerline
-brew cask install gpg-suite
-brew cask install google-chrome
-brew cask install iterm2
-brew cask install karabiner-elements
-brew cask install rectangle
-brew cask install virtualbox
-brew cask install visual-studio-code
-brew cask install xquartz
+brew install --cask docker
+brew install --cask font-fira-code
+brew install --cask font-source-code-pro-for-powerline
+brew install --cask gpg-suite
+brew install --cask google-chrome
+brew install --cask iterm2
+brew install --cask karabiner-elements
+brew install --cask rectangle
+brew install --cask virtualbox
+brew install --cask visual-studio-code
+brew install --cask xquartz
 
+brew install aircrack-ng
+brew install bfg
+brew install binutils
+brew install binwalk
+brew install Caskroom/cask/java
+brew install Caskroom/cask/xquartz
+brew install cifer
 brew install circleci
 brew install cmake
 brew install cookiecutter
 brew install ctags
+brew install dex2jar
 brew install direnv
+brew install dns2tcp
 brew install docker-compose
+brew install fcrackzip
 brew install findutils
+brew install foremost
 brew install fzf
 brew install fzy
 brew install gcc
@@ -50,9 +65,15 @@ brew install golang
 brew install graphviz
 brew install grep
 brew install gts
+brew install hashpump
 brew install helm
+brew install homebrew/x11/xpdf
 brew install httpie
+brew install hydra
+brew install imagemagick
+brew install john
 brew install jq
+brew install knock
 brew install kops
 brew install kubectx
 brew install kubernetes-cli
@@ -61,36 +82,59 @@ brew install kubetail
 brew install libpq
 brew install libressl
 brew install lua
+brew install lynx
 brew install minikube
 brew install neovim
+brew install netpbm
 brew install newman
+brew install nmap
 brew install openjdk
+brew install p7zip
 brew install pgcli
+brew install pigz
 brew install pipx
+brew install pngcheck
+brew install pv
 brew install pyenv
 brew install pyenv-virtualenv
 brew install readline
+brew install rename
+brew install rhino
 brew install rlwrap
 brew install ruby
+brew install sfnt2woff
+brew install sfnt2woff-zopfli
 brew install shellcheck
 brew install shfmt
+brew install socat
+brew install speedtest_cli
 brew install sphinx-doc
+brew install sqlmap
+brew install ssh-copy-id
 brew install starship
+brew install tcpflow
+brew install tcpreplay
+brew install tcptrace
 brew install terraform
 brew install tmux
+brew install tree
+brew install ucspi-tcp
 brew install unixodbc
 brew install vim
 brew install watch
+brew install webkit2png
 brew install webp
+brew install woff2
 brew install xclip
 brew install xz
 brew install yarn
 brew install zlib
+brew install zopfli
 brew install zplug
 brew install zsh
 brew install zsh-completions
 
-git clone https://github.com/tmux-plugins/tpm ./.tmux/plugins/tpm
+rm -fr ./.tmux/plugins/tpm && git clone https://github.com/tmux-plugins/tpm ./.tmux/plugins/tpm
 
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
 
@@ -117,6 +161,8 @@ npm i -g typesync
 npm i -g vue-language-server
 
 # install cli packages in rust
+export $PATH=$HOME/.cargo/bin:$PATH
+
 cargo install bat
 cargo install du-dust
 cargo install exa
@@ -139,67 +185,4 @@ brew install rabbitmq
 brew install redis
 brew install mysql
 
-compaudit | xargs chmod g-w
-
-UPDATEZSHRC=1
-
-read -r -d '' ZSHRCINIT <<- EOM
-### Begin Env Init
-source "\$HOME/.env/settings.zsh"
-source "\$HOME/.env/vars.zsh"
-source "\$HOME/.env/plugins.zsh"
-source "\$HOME/.env/functions.zsh"
-source "\$HOME/.env/aliases.zsh"
-source "\$HOME/.env/bindings.zsh"
-[ -s "\$HOME/.env/work-stuff.zsh" ] && \. "\$HOME/.env/work-stuff.zsh"
-### End Env Init
-EOM
-
-if [ "$(grep -F "${ZSHRCINIT}" $HOME/.zshrc)" = "${ZSHRCINIT}" ]; then
-  echo "\033[38;5;160mEnv init already added to $HOME/.zshrc\033[0m"
-  UPDATEZSHRC=0
-fi
-
-if [ $UPDATEZSHRC -eq 1 ]; then
-  echo "\033[38;5;82mInstalling Env init to $HOME/.zshrc\033[0m"
-  echo "\n$ZSHRCINIT" >> $HOME/.zshrc
-fi
-
-read -r -d '' TMUXCONF <<- EOM
-# List of plugins
-set -g @plugin 'tmux-plugins/tpm'
-set -g @plugin 'tmux-plugins/tmux-sensible'
-set -g @plugin 'tmux-plugins/tmux-resurrect'
-set -g @plugin 'tmux-plugins/tmux-continuum'
-set -g @plugin 'tmux-plugins/tmux-yank'
-set -g history-limit 10000
-# Initialize TMUX plugin manager (keep this line at the very bottom of tmux.conf)
-run '~/.env/.tmux/plugins/tpm/tpm'
-EOM
-
-echo "\n$TMUXCONF" >> $HOME/.tmux.conf
-
-cat $HOME/.env/starship.toml > $HOME/.config/starship.toml
-
-echo "\033[38;5;111mLoading changes to $HOME/.zshrc to shell\033[0m"
-zsh $HOME/.zshrc
-
-echo "\033[38;5;111mInstall python 3.7.8\033[0m"
-pyenv install 3.7.8
-
-echo "\033[38;5;111mSet python 3.7.8 as system default\033[0m"
-pyenv global 3.7.8
-
-
-echo "\033[38;5;111mAdds poetry tab completion\033[0m"
-poetry completions zsh > $(brew --prefix)/share/zsh/site-functions/_poetry
-
-echo "\033[38;5;111minstall git-lfs\033[0m"
-git lfs install
-git lfs install --system
-
-echo "\033[38;5;111mSet poetry virtualenvs to be stored in project\033[0m"
-poetry config virtualenvs.in-project true
-
-# zsh zinit self-update
-echo "\033[38;5;82mSetup Complete\033[0m"
+zsh ./configure.zsh

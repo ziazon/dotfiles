@@ -38,7 +38,6 @@ pyenv install 3.7.8
 echo "\033[38;5;111mSet python 3.7.8 as system default\033[0m"
 pyenv global 3.7.8
 
-
 echo "\033[38;5;111mAdds poetry tab completion\033[0m"
 poetry completions zsh > $(brew --prefix)/share/zsh/site-functions/_poetry
 

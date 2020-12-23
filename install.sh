@@ -176,12 +176,16 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma/zinit/master/doc/i
 # install aws cli
 curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg" && sudo installer -pkg AWSCLIV2.pkg -target /
 
+#install nats-tail useful util for nats-streaming-server
+go get -u github.com/wallyqs/nats-tail
+
 rm -f AWSCLIV2.pkg
 
 # install services
 brew install nginx
 brew install postgresql
 brew install rabbitmq
+brew install nats-streaming-server
 brew install redis
 brew install mysql
 

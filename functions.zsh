@@ -6,7 +6,10 @@ function r() { grep "$1" ${@:2} -R . }
 function mkcd() { mkdir -p "$@" && cd "$_"; }
 
 #kill process on port
-function kill-port() { lsof -i tcp:$1 | awk 'NR!=1 {print $2}' | xargs kill }
+function kill-port() {
+  pid=($(lsof -i tcp:$1 | awk 'NR!=1 {print $2}'))
+  [ -z "${pid}" ] || kill ${pid}
+}
 
 function docker-clean() {
   docker_container_list=($(docker ps -a -q))

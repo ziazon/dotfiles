@@ -25,7 +25,3 @@ disabled = true
 
 [package]
 disabled = true
-
-[python]
-only_display_in_virtualenv = true
-display_virtualenv = false

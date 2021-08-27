@@ -1,4 +1,4 @@
-export EDITOR='subl -w'
+export EDITOR='vim'
 export PYENV_ROOT="$HOME/.pyenv"
 export GOPATH=$HOME/go
 

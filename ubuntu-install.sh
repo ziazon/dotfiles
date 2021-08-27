@@ -31,6 +31,8 @@ curl https://pyenv.run | bash
 curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python -
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma/zinit/master/doc/install.sh)"
 
+rm -fr ./.tmux/plugins/tpm && git clone https://github.com/tmux-plugins/tpm ./.tmux/plugins/tpm
+
 
 consul -autocomplete-install
 vault -autocomplete-install

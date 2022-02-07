@@ -20,6 +20,10 @@ $line_break\
 $character\
 """
 
+[env_var.ENV]
+default = ""
+format = "[$env_value]($style) "
+
 [aws]
 disabled = true
 

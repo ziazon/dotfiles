@@ -40,7 +40,6 @@ nomad -autocomplete-install
 
 snap install doctl
 mkdir ~/.config
-snap connect doctl:dot-docker
 
 usermod -a -G docker consul
 
@@ -49,8 +48,8 @@ snap install node --classic
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-nvm install 14
-nvm use 14
+nvm install 16
+nvm use 16
 
 export PATH=$HOME/.cargo/bin:$PATH
 export PATH=$PATH:/usr/local/go/bin
@@ -68,3 +67,4 @@ export GOPATH=$HOME/go
 export PATH="$PATH:${GOPATH}/bin:${GOROOT}/bin"
 
 go install github.com/jubairsaidi/nats-tail@latest
+

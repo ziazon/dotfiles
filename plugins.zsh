@@ -30,6 +30,7 @@ function _makefile_targets {
     curr_arg=${COMP_WORDS[COMP_CWORD]}
     COMPREPLY=( $(compgen -W "${targets[@]}" -- $curr_arg ) );
 }
+
 complete -F _makefile_targets make
 
 [ -f $HOME/.env/.fzf.zsh ] && source $HOME/.env/.fzf.zsh
@@ -47,19 +48,13 @@ source "${ZINIT_HOME}/zinit.zsh"
 autoload -Uz _zinit
 (( ${+_comps} )) && _comps[zinit]=_zinit
 
-# Load the pure theme, with zsh-async library that's bundled with it.
-zinit ice pick"async.zsh" src"pure.zsh"
-zinit light sindresorhus/pure
-
 # A glance at the new for-syntax – load all of the above
 # plugins with a single command. For more information see:
 # https://zdharma-continuum.github.io/zinit/wiki/For-Syntax/
 zinit for \
     light-mode  zsh-users/zsh-autosuggestions \
     light-mode  zdharma-continuum/fast-syntax-highlighting \
-                zdharma-continuum/history-search-multi-word \
-    light-mode pick"async.zsh" src"pure.zsh" \
-                sindresorhus/pure
+                zdharma-continuum/history-search-multi-word
 
 # Binary release in archive, from GitHub-releases page.
 # After automatic unpacking it provides program "fzf".

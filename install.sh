@@ -143,7 +143,8 @@ curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.35.3/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-nvm install v12.18.4 # use nvm ls-remote to get current version first
+nvm install 16
+nvm use 16
 
 npm i -g @nestjs/cli
 npm i -g @vue/cli

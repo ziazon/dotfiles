@@ -3,16 +3,18 @@ eval "$(pyenv init -)"
 eval "$(pyenv virtualenv-init -)"
 
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
 if type brew &>/dev/null; then
     FPATH=$(brew --prefix)/share/zsh-completions:$FPATH
 fi
 
-autoload -Uz compinit
-compinit
+autoload -U +X bashcompinit && bashcompinit
+complete -o nospace -C /usr/bin/consul consul
 
-autoload bashcompinit
-bashcompinit
+complete -o nospace -C /usr/bin/vault vault
+
+complete -o nospace -C /usr/bin/nomad nomad
 
 function _makefile_targets {
     local curr_arg;
@@ -37,24 +39,25 @@ complete -F _makefile_targets make
 
 
 ### Added by Zinit's installer
-ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
-if [[ ! -d $ZINIT_HOME ]]; then
-mkdir -p "$(dirname $ZINIT_HOME)"
-git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
+if [[ ! -f $HOME/.local/share/zinit/zinit.git/zinit.zsh ]]; then
+    print -P "%F{33} %F{220}Installing %F{33}ZDHARMA-CONTINUUM%F{220} Initiative Plugin Manager (%F{33}zdharma-continuum/zinit%F{220})…%f"
+    command mkdir -p "$HOME/.local/share/zinit" && command chmod g-rwX "$HOME/.local/share/zinit"
+    command git clone https://github.com/zdharma-continuum/zinit "$HOME/.local/share/zinit/zinit.git" && \
+        print -P "%F{33} %F{34}Installation successful.%f%b" || \
+        print -P "%F{160} The clone has failed.%f%b"
 fi
 
-source "${ZINIT_HOME}/zinit.zsh"
-
+source "$HOME/.local/share/zinit/zinit.git/zinit.zsh"
 autoload -Uz _zinit
 (( ${+_comps} )) && _comps[zinit]=_zinit
 
-# A glance at the new for-syntax – load all of the above
-# plugins with a single command. For more information see:
-# https://zdharma-continuum.github.io/zinit/wiki/For-Syntax/
-zinit for \
-    light-mode  zsh-users/zsh-autosuggestions \
-    light-mode  zdharma-continuum/fast-syntax-highlighting \
-                zdharma-continuum/history-search-multi-word
+# Load a few important annexes, without Turbo
+# (this is currently required for annexes)
+zinit light-mode for \
+    zdharma-continuum/zinit-annex-as-monitor \
+    zdharma-continuum/zinit-annex-bin-gem-node \
+    zdharma-continuum/zinit-annex-patch-dl \
+    zdharma-continuum/zinit-annex-rust
 
 # Binary release in archive, from GitHub-releases page.
 # After automatic unpacking it provides program "fzf".

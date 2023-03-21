@@ -33,6 +33,7 @@ brew install --cask slack
 brew install --cask xquartz
 
 brew install aircrack-ng
+brew install ansible
 brew install bfg
 brew install binutils
 brew install binwalk

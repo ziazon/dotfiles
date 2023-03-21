@@ -30,6 +30,7 @@ brew install --cask virtualbox
 brew install --cask visual-studio-code
 brew install --cask gitkraken
 brew install --cask slack
+brew install --cask gitkraken
 brew install --cask xquartz
 
 brew install aircrack-ng

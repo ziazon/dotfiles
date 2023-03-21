@@ -28,6 +28,7 @@ brew install --cask karabiner-elements
 brew install --cask rectangle
 brew install --cask virtualbox
 brew install --cask visual-studio-code
+brew install --cask gitkraken
 brew install --cask slack
 brew install --cask xquartz
 

@@ -35,6 +35,7 @@ brew install --cask xquartz
 
 brew install aircrack-ng
 brew install ansible
+brew install ansible-lint
 brew install bfg
 brew install binutils
 brew install binwalk
@@ -49,6 +50,7 @@ brew install dex2jar
 brew install direnv
 brew install dns2tcp
 brew install docker-compose
+brew install doctl
 brew install fcrackzip
 brew install findutils
 brew install foremost

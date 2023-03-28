@@ -89,6 +89,7 @@ brew install libpq
 brew install libressl
 brew install lua
 brew install lynx
+brew install magic-wormhole
 brew install minikube
 brew install neovim
 brew install netpbm

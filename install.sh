@@ -44,6 +44,7 @@ brew install Caskroom/cask/xquartz
 brew install cifer
 brew install circleci
 brew install cmake
+brew install consul
 brew install cookiecutter
 brew install ctags
 brew install dex2jar
@@ -95,6 +96,7 @@ brew install neovim
 brew install netpbm
 brew install newman
 brew install nmap
+brew install nomad
 brew install openjdk
 brew install p7zip
 brew install pgcli
@@ -127,6 +129,7 @@ brew install tmux
 brew install tree
 brew install ucspi-tcp
 brew install unixodbc
+brew install vault
 brew install vim
 brew install watch
 brew install webkit2png

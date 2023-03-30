@@ -171,6 +171,11 @@ npm i -g typeorm
 npm i -g typesync
 npm i -g vue-language-server
 
+# Adds Auto Complete
+consul -autocomplete-install
+nomad -autocomplete-install
+vault -autocomplete-install
+
 # install cli packages in rust
 export $PATH=$HOME/.cargo/bin:$PATH
 

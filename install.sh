@@ -146,7 +146,13 @@ brew install zsh-completions
 
 rm -fr ./.tmux/plugins/tpm && git clone https://github.com/tmux-plugins/tpm ./.tmux/plugins/tpm
 
-curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
+echo "\033[38;5;111mInstall python 3.9.18\033[0m"
+pyenv install 3.9.18
+
+echo "\033[38;5;111mSet python 3.9.18 as system default\033[0m"
+pyenv global 3.9.18
+
+curl -sSL https://install.python-poetry.org | python3 -
 
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.35.3/install.sh | bash
 

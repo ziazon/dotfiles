@@ -32,12 +32,6 @@ ln -s $HOME/.env/tmux.conf $HOME/.tmux.conf
 echo "\033[38;5;111mLoading changes to $HOME/.zshrc to shell\033[0m"
 zsh $HOME/.zshrc
 
-echo "\033[38;5;111mInstall python 3.7.8\033[0m"
-pyenv install 3.7.8
-
-echo "\033[38;5;111mSet python 3.7.8 as system default\033[0m"
-pyenv global 3.7.8
-
 echo "\033[38;5;111mAdds poetry tab completion\033[0m"
 if type brew &>/dev/null; then
   poetry completions zsh > $(brew --prefix)/share/zsh/site-functions/_poetry

@@ -20,6 +20,8 @@ $line_break\
 $character\
 """
 
+command_timeout = 2000
+
 [env_var.ENV]
 default = ""
 format = "[$env_value]($style) "

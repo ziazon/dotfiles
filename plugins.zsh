@@ -10,11 +10,12 @@ if type brew &>/dev/null; then
 fi
 
 autoload -U +X bashcompinit && bashcompinit
-complete -o nospace -C /usr/bin/consul consul
-
-complete -o nospace -C /usr/bin/vault vault
-
-complete -o nospace -C /usr/bin/nomad nomad
+for _hc in consul vault nomad; do
+  if command -v "$_hc" >/dev/null 2>&1; then
+    complete -o nospace -C "$(command -v "$_hc")" "$_hc"
+  fi
+done
+unset _hc
 
 function _makefile_targets {
     local curr_arg;
@@ -35,7 +36,8 @@ function _makefile_targets {
 
 complete -F _makefile_targets make
 
-[ -f $HOME/.env/.fzf.zsh ] && source $HOME/.env/.fzf.zsh
+# fzf key bindings + completion (fzf >= 0.48)
+command -v fzf >/dev/null 2>&1 && source <(fzf --zsh)
 
 
 ### Added by Zinit's installer

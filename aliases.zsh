@@ -1,8 +1,7 @@
 # Aliases
 alias cppcompile='c++ -std=c++11 -stdlib=libc++'
 
-# Use sublimetext for editing config files
-alias zshconfig="subl ~/.zshrc"
+alias zshconfig="${EDITOR:-vim} ~/.zshrc"
 
 alias reload="exec zsh --login"
 
@@ -15,11 +14,11 @@ alias flushdns="sudo killall -HUP mDNSResponder;sudo killall mDNSResponderHelper
 alias python-env="python -m venv .venv"
 
 # alias cat="bat"
-alias ls="exa -g --ignore-glob __pycache__"
+alias ls="eza -g --ignore-glob __pycache__"
 alias ll='ls -la'
 alias diff="prettydiff"
 # alias ps="procs"
-alias tree="exa -Tla --extended --git-ignore -I=.git"
+alias tree="eza -Tla --extended --git-ignore -I=.git"
 alias du='dust'
 alias ag='rg'
 

@@ -1,214 +1,80 @@
-#!/bin/sh
+#!/usr/bin/env bash
+#
+# Bootstrap a new macOS machine.
+#   1. Installs Homebrew (arch-aware: Apple Silicon -> /opt/homebrew, Intel -> /usr/local)
+#   2. Installs everything in ./Brewfile via `brew bundle`
+#   3. Installs language toolchains (Rust, Python via pyenv, Node via nvm, Go tools)
+#   4. Installs the zinit zsh plugin manager and wires up the shell (configure.zsh)
+#
+# Safe to re-run: brew bundle is idempotent and version installs skip if present.
 
-touch $HOME/.zshrc
+touch "$HOME/.zshrc"
 
+# Keep sudo alive for the duration of the script.
 sudo -v
 while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 
-#install Homebrew
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+# --- Homebrew -----------------------------------------------------------------
+if ! command -v brew >/dev/null 2>&1; then
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
 
-# install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+# Put brew on PATH for this script, whichever prefix it landed in.
+if [ -x /opt/homebrew/bin/brew ]; then
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -x /usr/local/bin/brew ]; then
+  eval "$(/usr/local/bin/brew shellenv)"
+fi
 
-# install packages/libs
-brew tap johanhaleby/kubetail
-brew tap bramstein/webfonttools
-brew tap homebrew/cask-fonts
+# --- Packages (formulae + casks) ---------------------------------------------
+brew bundle --file="$HOME/.env/Brewfile"
 
-brew install svn
+# --- tmux plugin manager ------------------------------------------------------
+rm -rf "$HOME/.env/.tmux/plugins/tpm"
+git clone https://github.com/tmux-plugins/tpm "$HOME/.env/.tmux/plugins/tpm"
 
-brew install --cask docker
-brew install --cask font-fira-code
-brew install --cask font-source-code-pro-for-powerline
-brew install --cask gpg-suite
-brew install --cask google-chrome
-brew install --cask iterm2
-brew install --cask karabiner-elements
-brew install --cask rectangle
-brew install --cask virtualbox
-brew install --cask visual-studio-code
-brew install --cask gitkraken
-brew install --cask slack
-brew install --cask gitkraken
-brew install --cask xquartz
+# --- Rust ---------------------------------------------------------------------
+if ! command -v rustc >/dev/null 2>&1; then
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+fi
+export PATH="$HOME/.cargo/bin:$PATH"
 
-brew install aircrack-ng
-brew install ansible
-brew install ansible-lint
-brew install bfg
-brew install binutils
-brew install binwalk
-brew install Caskroom/cask/java
-brew install Caskroom/cask/xquartz
-brew install cifer
-brew install circleci
-brew install cmake
-brew install consul
-brew install cookiecutter
-brew install ctags
-brew install dex2jar
-brew install direnv
-brew install dns2tcp
-brew install docker-compose
-brew install doctl
-brew install fcrackzip
-brew install findutils
-brew install foremost
-brew install fzf
-brew install fzy
-brew install gcc
-brew install gd
-brew install gh
-brew install git
-brew install git-delta
-brew install git-flow
-brew install git-lfs
-brew install glib
-brew install gmp
-brew install gnupg
-brew install gnutls
-brew install golang
-brew install graphviz
-brew install grep
-brew install gts
-brew install hashpump
-brew install helm
-brew install homebrew/x11/xpdf
-brew install httpie
-brew install hydra
-brew install imagemagick
-brew install john
-brew install jq
-brew install knock
-brew install kops
-brew install kubectx
-brew install kubernetes-cli
-brew install kubernetes-helm
-brew install kubetail
-brew install libpq
-brew install libressl
-brew install lua
-brew install lynx
-brew install magic-wormhole
-brew install minikube
-brew install neovim
-brew install netpbm
-brew install newman
-brew install nmap
-brew install nomad
-brew install openjdk
-brew install p7zip
-brew install pgcli
-brew install pigz
-brew install pipx
-brew install pngcheck
-brew install pv
-brew install pyenv
-brew install pyenv-virtualenv
-brew install readline
-brew install rename
-brew install rhino
-brew install rlwrap
-brew install ruby
-brew install sfnt2woff
-brew install sfnt2woff-zopfli
-brew install shellcheck
-brew install shfmt
-brew install socat
-brew install speedtest_cli
-brew install sphinx-doc
-brew install sqlmap
-brew install ssh-copy-id
-brew install starship
-brew install tcpflow
-brew install tcpreplay
-brew install tcptrace
-brew install terraform
-brew install tmux
-brew install tree
-brew install ucspi-tcp
-brew install unixodbc
-brew install vault
-brew install vim
-brew install watch
-brew install webkit2png
-brew install webp
-brew install woff2
-brew install xclip
-brew install xz
-brew install yarn
-brew install zlib
-brew install zopfli
-brew install zplug
-brew install zsh
-brew install zsh-completions
+# Rust-based CLI tools (aliased in aliases.zsh)
+cargo install bat du-dust eza prettydiff procs ripgrep
 
-rm -fr ./.tmux/plugins/tpm && git clone https://github.com/tmux-plugins/tpm ./.tmux/plugins/tpm
+# --- Python (pyenv) -----------------------------------------------------------
+echo "\033[38;5;111mInstalling Python 3.12 via pyenv\033[0m"
+pyenv install --skip-existing 3.12
+pyenv global 3.12
 
-echo "\033[38;5;111mInstall python 3.9.18\033[0m"
-pyenv install 3.9.18
-
-echo "\033[38;5;111mSet python 3.9.18 as system default\033[0m"
-pyenv global 3.9.18
-
+# Poetry (current installer; installs to ~/.local/bin)
 curl -sSL https://install.python-poetry.org | python3 -
 
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.35.3/install.sh | bash
-
+# --- Node (nvm) ---------------------------------------------------------------
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+# shellcheck disable=SC1091
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 
-nvm install 16
-nvm use 16
+nvm install --lts
+nvm alias default 'lts/*'
 
-npm i -g @nestjs/cli
-npm i -g @vue/cli
-npm i -g aws-cdk
-npm i -g eslint
-npm i -g gulp
-npm i -g init-module
-npm i -g madge
-npm i -g npm-check-updates
-npm i -g pug-lint
-npm i -g pyright
-npm i -g sort-package-json
-npm i -g typeorm
-npm i -g typesync
-npm i -g vue-language-server
+# Global npm tooling
+npm i -g markdownlint-cli2
 
-# Adds Auto Complete
-consul -autocomplete-install
-nomad -autocomplete-install
-vault -autocomplete-install
+# --- Go tools -----------------------------------------------------------------
+go install golang.org/x/tools/gopls@latest
+go install honnef.co/go/tools/cmd/staticcheck@latest
 
-# install cli packages in rust
-export $PATH=$HOME/.cargo/bin:$PATH
+# --- zinit (zsh plugin manager) ----------------------------------------------
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma-continuum/zinit/HEAD/scripts/install.sh)"
 
-cargo install bat
-cargo install du-dust
-cargo install exa
-cargo install prettydiff
-cargo install procs
-cargo install ripgrep
+# --- AWS CLI ------------------------------------------------------------------
+if ! command -v aws >/dev/null 2>&1; then
+  curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"
+  sudo installer -pkg AWSCLIV2.pkg -target /
+  rm -f AWSCLIV2.pkg
+fi
 
-# install Zinit for zsh plugin managmenet
-sh -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma/zinit/master/doc/install.sh)"
-
-# install aws cli
-curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg" && sudo installer -pkg AWSCLIV2.pkg -target /
-
-#install nats-tail useful util for nats-streaming-server
-go get -u github.com/wallyqs/nats-tail
-
-rm -f AWSCLIV2.pkg
-
-# install services
-brew install nginx
-brew install postgresql
-brew install rabbitmq
-brew install nats-streaming-server
-brew install redis
-brew install mysql
-
-zsh ./configure.zsh
+# --- Wire up the shell --------------------------------------------------------
+zsh "$HOME/.env/configure.zsh"

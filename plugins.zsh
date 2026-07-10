@@ -8,12 +8,14 @@ _evalcache() {
   bin="$(command -v "$1")" || return 0
   if [ ! -s "$cache" ] || [ "$bin" -nt "$cache" ]; then
     command mkdir -p "${cache%/*}"
-    # Write to a temp file and move atomically on success only, so a failing
-    # init command or two racing first-run shells can't leave a partial cache.
-    if "$@" > "$cache.$$"; then
-      command mv -f "$cache.$$" "$cache"
+    # Write to a unique temp file and move atomically on success only, so a
+    # failing init command or racing shells can't leave a partial cache.
+    local tmp
+    tmp="$(command mktemp "${cache}.XXXXXX")" || return 0
+    if "$@" > "$tmp"; then
+      command mv -f "$tmp" "$cache"
     else
-      command rm -f "$cache.$$"
+      command rm -f "$tmp"
     fi
   fi
   [ -s "$cache" ] && source "$cache"

@@ -1,12 +1,71 @@
-eval "$(starship init zsh)"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
+# Cache the output of slow `<tool> init` commands instead of spawning the tool
+# on every shell. The cache regenerates whenever the tool's binary is newer
+# than the cached script, so upgrades pick up new init code automatically.
+_evalcache() {
+  local name="$1"; shift
+  local cache="$HOME/.cache/zsh-evalcache/$name.zsh"
+  local bin
+  bin="$(command -v "$1")" || return 0
+  if [ ! -s "$cache" ] || [ "$bin" -nt "$cache" ]; then
+    command mkdir -p "${cache%/*}"
+    # Write to a temp file and move atomically on success only, so a failing
+    # init command or two racing first-run shells can't leave a partial cache.
+    if "$@" > "$cache.$$"; then
+      command mv -f "$cache.$$" "$cache"
+    else
+      command rm -f "$cache.$$"
+    fi
+  fi
+  [ -s "$cache" ] && source "$cache"
+}
 
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+_evalcache starship starship init zsh --print-full-init
+_evalcache pyenv-init pyenv init - zsh
+_evalcache pyenv-virtualenv-init pyenv virtualenv-init - zsh
 
-if type brew &>/dev/null; then
-    FPATH=$(brew --prefix)/share/zsh-completions:$FPATH
+# --- nvm: lazy-loaded ----------------------------------------------------------
+# Sourcing nvm.sh eagerly costs 1-2s. The default node (v22) is already first on
+# PATH via ~/.nvm-default-path.zsh (sourced from ~/.zshenv + ~/.zprofile), so
+# nvm.sh only needs to load when a shell actually calls `nvm`, or enters a repo
+# whose .nvmrc pins a different node (handled by load-nvmrc below).
+_nvm_source() {
+  [ -n "$_NVM_SOURCED" ] && return
+  typeset -g _NVM_SOURCED=1
+  unfunction nvm 2>/dev/null
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" --no-use
+  [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+}
+nvm() { _nvm_source; nvm "$@"; }
+# --- end nvm lazy-load ----------------------------------------------------------
+
+# Brew's zsh-completions must be on fpath BEFORE compinit runs or they never
+# register. vars.zsh (sourced just before this file) computed BREW_PREFIX.
+# compaudit requires $BREW_PREFIX/share to not be group-writable — if a brew
+# update restores g-w, full compinit shows a one-time "insecure directories?"
+# prompt; fix with: chmod g-w "$BREW_PREFIX/share".
+if [ -n "$BREW_PREFIX" ]; then
+    FPATH=$BREW_PREFIX/share/zsh-completions:$FPATH
+fi
+
+# compinit used to run as a hidden side effect of sourcing nvm's
+# bash_completion at startup; with nvm lazy-loaded it must run explicitly, or
+# every bash-style `complete` below silently fails. Full (slow) init at most
+# once a day; otherwise trust the existing dump (-C, ~20ms). Anonymous
+# function scopes extendedglob, which the (#q) qualifier requires.
+if ! command -v compdef >/dev/null 2>&1; then
+  () {
+    setopt localoptions extendedglob
+    local zcd="${ZDOTDIR:-$HOME}/.zcompdump"
+    autoload -Uz compinit
+    if [[ -n $zcd(#qN.mh-24) ]]; then
+      compinit -C
+    else
+      # compinit only rewrites the dump when its content changes; touch it
+      # (on success only, so a compaudit abort can't arm the fast path with
+      # a bad dump) to re-arm the 24h window above.
+      compinit && command touch "$zcd"
+    fi
+  }
 fi
 
 autoload -U +X bashcompinit && bashcompinit
@@ -99,22 +158,65 @@ zinit from"gh-r" as"program" mv"direnv* -> direnv" \
   direnv/direnv
 
 autoload -U add-zsh-hook
+
+# Locate the nearest .nvmrc up the tree without loading nvm (mirrors
+# nvm_find_nvmrc, pure zsh — no process spawns).
+_find-nvmrc() {
+  local dir="$PWD"
+  while [ -n "$dir" ]; do
+    if [ -s "$dir/.nvmrc" ]; then print -r -- "$dir/.nvmrc"; return 0; fi
+    [ "$dir" = "/" ] && return 1
+    dir="${dir:h}"
+  done
+  return 1
+}
+
+# chpwd hook: keep node in sync with .nvmrc. Fast path: if the active node
+# already satisfies .nvmrc (or there's no .nvmrc and nvm was never loaded, so
+# we're on the default), do nothing — nvm.sh never loads. Only a real version
+# mismatch pays the one-time nvm load. `--silent` (used by the startup call in
+# ~/.zshrc) suppresses the switch chatter like the old startup block did.
 load-nvmrc() {
-  local node_version="$(nvm version)"
-  local nvmrc_path="$(nvm_find_nvmrc)"
+  local silent=""
+  [ "$1" = "--silent" ] && silent=1
+  local nvmrc_path
+  nvmrc_path="$(_find-nvmrc)"
 
   if [ -n "$nvmrc_path" ]; then
-    local nvmrc_node_version=$(nvm version "$(cat "${nvmrc_path}")")
+    local want
+    IFS= read -r want < "$nvmrc_path"
+    want="${want//[[:space:]]/}"
+    local wantv="${want#v}"
+    local have="${$(command node --version 2>/dev/null)#v}"
+    if [ -n "$have" ]; then
+      case "$have" in
+        "$wantv"|"$wantv".*) return 0 ;;
+      esac
+    fi
+
+    _nvm_source
+    local node_version="$(nvm version)"
+    local nvmrc_node_version=$(nvm version "$want")
 
     if [ "$nvmrc_node_version" = "N/A" ]; then
       nvm install
     elif [ "$nvmrc_node_version" != "$node_version" ]; then
-      nvm use
+      if [ -n "$silent" ]; then
+        nvm use --silent >/dev/null 2>&1
+      else
+        nvm use
+      fi
     fi
-  elif [ "$node_version" != "$(nvm version default)" ]; then
-    echo "Reverting to nvm default version"
-    nvm use default
+  elif [ -n "$_NVM_SOURCED" ]; then
+    local node_version="$(nvm version)"
+    if [ "$node_version" != "$(nvm version default)" ]; then
+      if [ -n "$silent" ]; then
+        nvm use --silent default >/dev/null 2>&1
+      else
+        echo "Reverting to nvm default version"
+        nvm use default
+      fi
+    fi
   fi
 }
 add-zsh-hook chpwd load-nvmrc
-load-nvmrc

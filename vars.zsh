@@ -4,10 +4,15 @@ export GOPATH="$HOME/go"
 export NVM_DIR="$HOME/.nvm"
 export PGDATABASE=postgres
 
+# Derive the brew prefix from the binary's location instead of spawning
+# `brew --prefix` (x2, ~130ms). /opt/homebrew/bin/brew -> /opt/homebrew,
+# /usr/local/bin/brew -> /usr/local. `opt/go` is brew's stable per-formula
+# symlink (what `brew --prefix golang` resolves to), so no spawn needed there
+# either.
 BREW_PREFIX=""
 if type brew &>/dev/null; then
-  BREW_PREFIX="$(brew --prefix)"
-  export GOROOT="$(brew --prefix golang)/libexec"
+  BREW_PREFIX="${$(whence -p brew):h:h}"
+  export GOROOT="$BREW_PREFIX/opt/go/libexec"
 fi
 
 # PATH (later entries take precedence — they're prepended)

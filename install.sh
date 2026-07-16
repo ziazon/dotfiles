@@ -4,7 +4,7 @@
 #   1. Installs Homebrew (arch-aware: Apple Silicon -> /opt/homebrew, Intel -> /usr/local)
 #   2. Installs everything in ./Brewfile via `brew bundle`
 #   3. Installs language toolchains (Rust, Python via pyenv, Node via nvm, Go tools)
-#   4. Installs the zinit zsh plugin manager and wires up the shell (configure.zsh)
+#   4. Wires up the shell (configure.zsh); plugins.zsh self-installs zinit on first start
 #
 # Safe to re-run: brew bundle is idempotent and version installs skip if present.
 
@@ -65,9 +65,6 @@ npm i -g markdownlint-cli2
 # --- Go tools -----------------------------------------------------------------
 go install golang.org/x/tools/gopls@latest
 go install honnef.co/go/tools/cmd/staticcheck@latest
-
-# --- zinit (zsh plugin manager) ----------------------------------------------
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/zdharma-continuum/zinit/HEAD/scripts/install.sh)"
 
 # --- AWS CLI ------------------------------------------------------------------
 if ! command -v aws >/dev/null 2>&1; then

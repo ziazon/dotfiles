@@ -24,6 +24,7 @@ _evalcache() {
 _evalcache starship starship init zsh --print-full-init
 _evalcache pyenv-init pyenv init - zsh
 _evalcache pyenv-virtualenv-init pyenv virtualenv-init - zsh
+_evalcache direnv direnv hook zsh
 
 # --- nvm: lazy-loaded ----------------------------------------------------------
 # Sourcing nvm.sh eagerly costs 1-2s. The default node (v22) is already first on
@@ -101,63 +102,44 @@ complete -F _makefile_targets make
 command -v fzf >/dev/null 2>&1 && source <(fzf --zsh)
 
 
-### Added by Zinit's installer
-if [[ ! -f $HOME/.local/share/zinit/zinit.git/zinit.zsh ]]; then
-    print -P "%F{33} %F{220}Installing %F{33}ZDHARMA-CONTINUUM%F{220} Initiative Plugin Manager (%F{33}zdharma-continuum/zinit%F{220})…%f"
-    command mkdir -p "$HOME/.local/share/zinit" && command chmod g-rwX "$HOME/.local/share/zinit"
-    command git clone https://github.com/zdharma-continuum/zinit "$HOME/.local/share/zinit/zinit.git" && \
+# --- zinit (plugin manager) ---------------------------------------------------
+# Only for plugins Homebrew can't provide. Anything installable with `brew` is
+# declared in the Brewfile instead: zinit compiling a tool from source (or
+# fetching a release binary) duplicates the formula, and the big source clones
+# are what made a fresh setup fail with `fatal: expected 'packfile'`.
+ZINIT_HOME="$HOME/.local/share/zinit/zinit.git"
+if [[ ! -f $ZINIT_HOME/zinit.zsh ]]; then
+    print -P "%F{33} %F{220}Installing %F{33}zdharma-continuum/zinit%F{220}…%f"
+    command mkdir -p "${ZINIT_HOME:h}" && command chmod g-rwX "${ZINIT_HOME:h}"
+    # Shallow: zinit's own history is never needed here, and a smaller transfer
+    # is far less likely to die mid-clone on a fresh machine.
+    command git clone --depth=1 https://github.com/zdharma-continuum/zinit "$ZINIT_HOME" && \
         print -P "%F{33} %F{34}Installation successful.%f%b" || \
         print -P "%F{160} The clone has failed.%f%b"
 fi
 
-source "$HOME/.local/share/zinit/zinit.git/zinit.zsh"
-autoload -Uz _zinit
-(( ${+_comps} )) && _comps[zinit]=_zinit
+# A failed clone must not take the shell down with it — without this guard the
+# `source` below aborts .zshrc, so aliases/bindings never load and the shell is
+# left half-configured.
+if [[ -f $ZINIT_HOME/zinit.zsh ]]; then
+    source "$ZINIT_HOME/zinit.zsh"
+    autoload -Uz _zinit
+    (( ${+_comps} )) && _comps[zinit]=_zinit
 
-# Load a few important annexes, without Turbo
-# (this is currently required for annexes)
-zinit light-mode for \
-    zdharma-continuum/zinit-annex-as-monitor \
-    zdharma-continuum/zinit-annex-bin-gem-node \
-    zdharma-continuum/zinit-annex-patch-dl \
-    zdharma-continuum/zinit-annex-rust
-
-# Binary release in archive, from GitHub-releases page.
-# After automatic unpacking it provides program "fzf".
-zinit ice from"gh-r" as"program"
-zinit light junegunn/fzf
-
-# One other binary release, it needs renaming from `docker-compose-Linux-x86_64`.
-# This is done by ice-mod `mv'{from} -> {to}'. There are multiple packages per
-# single version, for OS X, Linux and Windows – so ice-mod `bpick' is used to
-# select Linux package – in this case this is actually not needed, Zinit will
-# grep operating system name and architecture automatically when there's no `bpick'.
-zinit ice from"gh-r" as"program" mv"docker* -> docker-compose" bpick"*linux*"
-zinit load docker/compose
-
-# Vim repository on GitHub – a typical source code that needs compilation – Zinit
-# can manage it for you if you like, run `./configure` and other `make`, etc. stuff.
-# Ice-mod `pick` selects a binary program to add to $PATH. You could also install the
-# package under the path $ZPFX, see: https://zdharma-continuum.github.io/zinit/wiki/Compiling-programs
-zinit ice as"program" atclone"rm -f src/auto/config.cache; ./configure" \
-    atpull"%atclone" make pick"src/vim"
-zinit light vim/vim
-
-# Scripts that are built at install (there's single default make target, "install",
-# and it constructs scripts by `cat'ing a few files). The make'' ice could also be:
-# `make"install PREFIX=$ZPFX"`, if "install" wouldn't be the only, default target.
-zinit ice as"program" pick"$ZPFX/bin/git-*" make"PREFIX=$ZPFX"
-zinit light tj/git-extras
-
-# For GNU ls (the binaries can be gls, gdircolors, e.g. on OS X when installing the
-# coreutils package from Homebrew; you can also use https://github.com/ogham/exa)
-zinit ice atclone"dircolors -b LS_COLORS > c.zsh" atpull'%atclone' pick"c.zsh" nocompile'!'
-zinit light trapd00r/LS_COLORS
-
-zinit from"gh-r" as"program" mv"direnv* -> direnv" \
-  atclone'./direnv hook zsh > zhook.zsh' atpull'%atclone' \
-  pick"direnv" src="zhook.zsh" for \
-  direnv/direnv
+    # Turbo (`wait`) defers these until after the first prompt, keeping startup
+    # at ~0.45s. Neither registers completions via compdef, so the tuned
+    # compinit above stands alone — no zicompinit/zicdreplay here.
+    # zsh-completions is deliberately absent: brew's formula is that same
+    # project, already on FPATH before compinit (see above).
+    # autosuggestions binds itself from a precmd hook, which a deferred load
+    # would miss for the first prompt; atload re-runs its starter to fix that.
+    zinit wait lucid depth"1" for \
+        atload"!_zsh_autosuggest_start" \
+            zsh-users/zsh-autosuggestions \
+        zdharma-continuum/fast-syntax-highlighting
+else
+    print -P "%F{160} zinit missing — continuing without plugins.%f%b"
+fi
 
 autoload -U add-zsh-hook
 

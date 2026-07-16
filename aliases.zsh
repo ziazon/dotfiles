@@ -64,3 +64,11 @@ alias map="xargs -n1"
 
 alias mute="osascript -e 'set volume output muted true'"
 alias volume="osascript -e 'set volume 7'"
+
+# Prune leaked Codex plugin MCP hosts (sites + codex-security) that the shared
+# codex app-server daemon spawns per task and never reaps. Safe with multiple
+# sessions open: keeps the newest host per plugin, never kills anything <5min
+# old or currently busy. `--dry-run` to preview, `--keep 0 --min-age 0` to nuke
+# every idle host. `codex-mcp-ps` just lists the current hosts.
+alias codex-mcp-cleanup="$HOME/.claude/scripts/codex-mcp-cleanup.sh"
+alias codex-mcp-ps="pgrep -f 'mcp/server\.mjs' | xargs -I{} sh -c 'printf \"%-7s \" {}; ps -o etime=,%cpu= -p {}'"

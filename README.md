@@ -18,7 +18,7 @@ Then clone this repo to `~/.env` and run the installer:
 
 ```bash
 cd ~
-git clone git@github.com:jubairsaidi/dotfiles.git .env && cd .env
+git clone git@github.com:ziazon/dotfiles.git .env && cd .env
 ./install.sh
 ```
 
@@ -29,8 +29,9 @@ git clone git@github.com:jubairsaidi/dotfiles.git .env && cd .env
 2. Installs every formula and cask in [`Brewfile`](Brewfile) via `brew bundle`.
 3. Installs language toolchains: Rust (rustup), Python 3.12 (pyenv),
    Node LTS (nvm), and Go tools.
-4. Installs the [zinit](https://github.com/zdharma-continuum/zinit) zsh plugin
-   manager and wires up the shell via [`configure.zsh`](configure.zsh).
+4. Wires up the shell via [`configure.zsh`](configure.zsh). On first shell
+   start, [`plugins.zsh`](plugins.zsh) installs the
+   [zinit](https://github.com/zdharma-continuum/zinit) zsh plugin manager.
 
 ## Managing packages
 
@@ -55,7 +56,7 @@ brew bundle dump --file=~/.env/Brewfile --force
 | `configure.zsh` | Injects shell init into `~/.zshrc`, creates symlinks |
 | `settings.zsh`  | zsh options (history, `setopt`)                      |
 | `vars.zsh`      | Environment variables and `PATH`                     |
-| `plugins.zsh`   | zinit plugins, completions, prompt, fzf, nvm hook    |
+| `plugins.zsh`   | zinit setup/plugins, completions, prompt, fzf, nvm hook |
 | `functions.zsh` | Shell functions                                      |
 | `aliases.zsh`   | Aliases                                              |
 | `bindings.zsh`  | Key bindings                                         |

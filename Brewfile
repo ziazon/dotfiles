@@ -104,6 +104,7 @@ brew "hashicorp/tap/vault"
 ## Media, images & documents
 brew "ffmpeg"
 brew "imagemagick"
+brew "poppler"
 brew "graphviz"
 brew "pngcheck"
 brew "webkit2png"
@@ -113,6 +114,7 @@ brew "udunits"
 
 ## Security / network analysis
 brew "nmap"
+brew "ngrep"
 brew "aircrack-ng"
 brew "hydra"
 brew "john"
@@ -139,7 +141,9 @@ brew "subversion"
 brew "certbot"
 brew "ansible"
 brew "ansible-lint"
+brew "docker"
 brew "docker-compose"
+brew "colima"            # run `colima start` to bring up the container engine
 
 ## Casks — GUI apps, editors, terminals & AI tooling
 cask "cursor"            # primary IDE

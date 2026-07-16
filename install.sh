@@ -30,6 +30,7 @@ fi
 brew bundle --file="$HOME/.env/Brewfile"
 
 # --- tmux plugin manager ------------------------------------------------------
+mkdir -p "$HOME/.tmux"
 rm -rf "$HOME/.env/.tmux/plugins/tpm"
 git clone https://github.com/tmux-plugins/tpm "$HOME/.env/.tmux/plugins/tpm"
 
@@ -43,12 +44,14 @@ export PATH="$HOME/.cargo/bin:$PATH"
 cargo install bat du-dust eza prettydiff procs ripgrep
 
 # --- Python (pyenv) -----------------------------------------------------------
-echo "\033[38;5;111mInstalling Python 3.12 via pyenv\033[0m"
+printf '\033[38;5;111mInstalling Python 3.12 via pyenv\033[0m\n'
 pyenv install --skip-existing 3.12
 pyenv global 3.12
 
 # Poetry (current installer; installs to ~/.local/bin)
 curl -sSL https://install.python-poetry.org | python3 -
+# configure.zsh needs poetry on PATH to configure completion and virtualenvs.
+export PATH="$HOME/.local/bin:$PATH"
 
 # --- Node (nvm) ---------------------------------------------------------------
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash

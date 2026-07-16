@@ -16,8 +16,9 @@ if type brew &>/dev/null; then
 fi
 
 # PATH (later entries take precedence — they're prepended)
-PATH="$PATH:${GOPATH}/bin:${GOROOT}/bin"
+PATH="$PATH:${GOPATH}/bin"
 if [ -n "$BREW_PREFIX" ]; then
+  PATH="$PATH:${GOROOT}/bin"
   PATH="$BREW_PREFIX/opt/findutils/libexec/gnubin:$PATH"  # GNU find/xargs
   PATH="$BREW_PREFIX/opt/grep/libexec/gnubin:$PATH"       # GNU grep
   PATH="$BREW_PREFIX/opt/sqlite/bin:$PATH"

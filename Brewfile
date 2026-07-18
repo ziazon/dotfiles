@@ -12,6 +12,7 @@ brew "zsh"
 brew "zsh-completions"
 brew "starship"          # cross-shell prompt
 brew "tmux"
+brew "herdr"             # agent multiplexer for the terminal
 brew "direnv"            # per-directory env via .envrc
 brew "fzf"               # fuzzy finder
 brew "fzy"

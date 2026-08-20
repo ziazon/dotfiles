@@ -23,6 +23,7 @@ brew "watch"
 brew "grep"              # GNU grep (gnubin)
 brew "findutils"         # GNU find/xargs/locate (gnubin)
 brew "wget"
+brew "rsync"             # macOS only ships openrsync
 brew "jq"
 brew "httpie"
 brew "pv"

@@ -5,16 +5,21 @@ declarative package manifest.
 
 ## Install
 
-First, install the Xcode command line tools:
+On a machine with nothing but macOS and Xcode, run:
 
 ```bash
-xcode-select --install
+/bin/bash -c \
+  "$(curl -fsSL \
+    https://raw.githubusercontent.com/ziazon/dotfiles/master/bootstrap.sh)"
 ```
 
-If that fails, check **System Settings > General > Software Update** for a
-Command Line Tools update.
+`bootstrap.sh` checks the Xcode command line tools, installs Rosetta,
+Homebrew, git, and `gh`, configures git identity and an SSH key,
+authenticates with GitHub, clones both repos, then hands off to `install.sh`.
+It is idempotent and needs your sudo password plus a browser login partway
+through. Pass `--dry-run` to preview every action without changing the machine.
 
-Then clone this repo to `~/.env` and run the installer:
+If you already have the prerequisites and prefer to clone the repo yourself:
 
 ```bash
 cd ~
@@ -49,17 +54,18 @@ brew bundle dump --file=~/.env/Brewfile --force
 
 ## Layout
 
-| File            | Purpose                                              |
-| --------------- | ---------------------------------------------------- |
-| `Brewfile`      | Declarative formula/cask manifest (`brew bundle`)    |
-| `install.sh`    | One-shot machine bootstrap                           |
-| `configure.zsh` | Injects shell init into `~/.zshrc`, creates symlinks |
-| `settings.zsh`  | zsh options (history, `setopt`)                      |
-| `vars.zsh`      | Environment variables and `PATH`                     |
-| `plugins.zsh`   | zinit setup/plugins, completions, prompt, fzf, nvm hook |
-| `functions.zsh` | Shell functions                                      |
-| `aliases.zsh`   | Aliases                                              |
-| `bindings.zsh`  | Key bindings                                         |
-| `starship.toml` | [starship](https://starship.rs) prompt config        |
-| `tmux.conf`     | tmux config (+ TPM plugins)                          |
-| `work-stuff.zsh`| Machine-local secrets/overrides (git-ignored)        |
+| File             | Purpose                                                 |
+| ---------------- | ------------------------------------------------------- |
+| `Brewfile`       | Declarative formula/cask manifest (`brew bundle`)       |
+| `bootstrap.sh`   | From-scratch bootstrap (macOS + Xcode only)             |
+| `install.sh`     | One-shot machine bootstrap                              |
+| `configure.zsh`  | Injects shell init into `~/.zshrc`, creates symlinks    |
+| `settings.zsh`   | zsh options (history, `setopt`)                         |
+| `vars.zsh`       | Environment variables and `PATH`                        |
+| `plugins.zsh`    | zinit setup/plugins, completions, prompt, fzf, nvm hook |
+| `functions.zsh`  | Shell functions                                         |
+| `aliases.zsh`    | Aliases                                                 |
+| `bindings.zsh`   | Key bindings                                            |
+| `starship.toml`  | [starship](https://starship.rs) prompt config           |
+| `tmux.conf`      | tmux config (+ TPM plugins)                             |
+| `work-stuff.zsh` | Machine-local secrets/overrides (git-ignored)           |

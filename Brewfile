@@ -156,6 +156,7 @@ cask "gitkraken"
 cask "postman"
 cask "gpg-suite"
 cask "karabiner-elements"
+cask "monitorcontrol"    # controls external monitor brightness and volume
 cask "rectangle"
 cask "slack"
 cask "virtualbox"

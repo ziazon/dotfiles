@@ -23,6 +23,7 @@ brew "watch"
 brew "grep"              # GNU grep (gnubin)
 brew "findutils"         # GNU find/xargs/locate (gnubin)
 brew "wget"
+brew "rsync"             # macOS only ships openrsync
 brew "jq"
 brew "httpie"
 brew "pv"
@@ -123,14 +124,13 @@ brew "sqlmap"
 brew "binwalk"
 brew "foremost"
 brew "fcrackzip"
-brew "hashpump"
+# hashpump and tcptrace were dropped from homebrew-core.
 brew "cifer"
 brew "dex2jar"
 brew "dns2tcp"
 brew "knock"
 brew "tcpflow"
 brew "tcpreplay"
-brew "tcptrace"
 
 ## Editors
 brew "neovim"

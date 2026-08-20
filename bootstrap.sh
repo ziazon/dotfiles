@@ -7,6 +7,10 @@
 #   4. Runs install.sh, then installs and verifies the shared AI-team context
 #
 # Safe to re-run: every completed step is detected and skipped.
+#
+# Keep this script compatible with Bash 3.2: macOS ships 3.2 as /bin/bash, and
+# the documented entry point invokes it. In particular, under `set -u`, Bash
+# 3.2 treats expansion of an empty array ("${array[@]}") as an unbound variable.
 
 set -euo pipefail
 
@@ -388,12 +392,16 @@ fi
 
 info "Step 14/14: Final summary"
 ok "Installed or skipped because already present:"
-for item in "${SUMMARY[@]}"; do
-	printf '  %s\n' "$item"
-done
-for failure in "${FAILURES[@]}"; do
-	warn "⚠ $failure"
-done
+if [ "${#SUMMARY[@]}" -gt 0 ]; then
+	for item in "${SUMMARY[@]}"; do
+		printf '  %s\n' "$item"
+	done
+fi
+if [ "${#FAILURES[@]}" -gt 0 ]; then
+	for failure in "${FAILURES[@]}"; do
+		warn "⚠ $failure"
+	done
+fi
 printf '%s\n' \
 	"📋 sign in to Claude Code and Codex" \
 	"📋 re-add Claude Code plugin marketplaces" \

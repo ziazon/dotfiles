@@ -14,6 +14,9 @@ readonly COLOR_INFO=111
 readonly COLOR_OK=82
 readonly COLOR_WARN=214
 readonly COLOR_ERR=160
+# GitHub's published ED25519 host key fingerprint. Re-check it on GitHub's
+# "SSH key fingerprints" documentation page before changing this value.
+readonly GITHUB_ED25519_FP="SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU"
 
 info() { printf '\033[38;5;%sm%s\033[0m\n' "$COLOR_INFO" "$*"; }
 ok() { printf '\033[38;5;%sm%s\033[0m\n' "$COLOR_OK" "$*"; }
@@ -140,7 +143,7 @@ elif [ ! -t 0 ]; then
 	fi
 fi
 
-info "Step 1/13: Xcode command line tools"
+info "Step 1/14: Xcode command line tools"
 if xcode-select -p >/dev/null 2>&1; then
 	record "already present: Xcode command line tools"
 else
@@ -162,7 +165,7 @@ else
 	fi
 fi
 
-info "Step 2/13: Rosetta 2"
+info "Step 2/14: Rosetta 2"
 if [ "$(uname -m)" = "arm64" ] && [ ! -e /usr/libexec/rosetta ]; then
 	run softwareupdate --install-rosetta --agree-to-license
 	record "installed: Rosetta 2"
@@ -170,7 +173,7 @@ elif [ "$(uname -m)" = "arm64" ]; then
 	record "already present: Rosetta 2"
 fi
 
-info "Step 3/13: Homebrew"
+info "Step 3/14: Homebrew"
 if command -v brew >/dev/null 2>&1; then
 	record "already present: Homebrew"
 else
@@ -217,7 +220,7 @@ else
 	record "installed: Homebrew init in ~/.zprofile"
 fi
 
-info "Step 4/13: brew git and gh"
+info "Step 4/14: brew git and gh"
 for formula in git gh; do
 	if [ -x "$BREW_BIN" ] && "$BREW_BIN" list --formula "$formula" >/dev/null 2>&1; then
 		record "already present: brew formula $formula"
@@ -227,7 +230,7 @@ for formula in git gh; do
 	fi
 done
 
-info "Step 5/13: git identity and defaults"
+info "Step 5/14: git identity and defaults"
 ensure_git_setting user.name "$GIT_NAME"
 ensure_git_setting user.email "$GIT_EMAIL"
 ensure_git_setting init.defaultBranch main
@@ -239,7 +242,7 @@ else
 	record "installed: ~/.gitignore_global"
 fi
 
-info "Step 6/13: SSH key"
+info "Step 6/14: SSH key"
 run mkdir -p "$HOME/.ssh"
 run chmod 700 "$HOME/.ssh"
 if [ -f "$SSH_KEY" ]; then
@@ -272,7 +275,7 @@ else
 	info "Would add the newly generated SSH key to the Apple keychain."
 fi
 
-info "Step 7/13: GitHub CLI authentication"
+info "Step 7/14: GitHub CLI authentication"
 if gh auth status >/dev/null 2>&1; then
 	record "already present: GitHub CLI authentication"
 else
@@ -297,18 +300,46 @@ else
 	die "SSH public key not found at $SSH_KEY.pub."
 fi
 
-info "Step 8/13: Verify SSH to GitHub"
+info "Step 8/14: Seed GitHub SSH host key"
+if ssh-keygen -F github.com >/dev/null 2>&1; then
+	record "already present: github.com SSH host key"
+else
+	github_host_key_file="$(mktemp)"
+	if ! ssh-keyscan -t ed25519 github.com >"$github_host_key_file"; then
+		rm -f "$github_host_key_file"
+		die "Could not retrieve GitHub's ED25519 SSH host key; check the network connection."
+	fi
+	if [ ! -s "$github_host_key_file" ]; then
+		rm -f "$github_host_key_file"
+		die "GitHub's ED25519 SSH host key scan returned no key; check the network connection."
+	fi
+	github_host_key_fp="$(ssh-keygen -lf "$github_host_key_file" | awk 'NR == 1 { print $2 }')"
+	if [ "$github_host_key_fp" != "$GITHUB_ED25519_FP" ]; then
+		rm -f "$github_host_key_file"
+		die "GitHub SSH host key fingerprint mismatch: expected $GITHUB_ED25519_FP, received $github_host_key_fp. The connection may be intercepted; known_hosts was not changed."
+	fi
+	if [ ! -f "$HOME/.ssh/known_hosts" ]; then
+		run touch "$HOME/.ssh/known_hosts"
+		run chmod 600 "$HOME/.ssh/known_hosts"
+	fi
+	run append_block "$HOME/.ssh/known_hosts" "$(<"$github_host_key_file")"
+	rm -f "$github_host_key_file"
+	record "installed: github.com SSH host key"
+fi
+
+info "Step 9/14: Verify SSH to GitHub"
 if "$dry_run"; then
-	run ssh -T git@github.com
+	info " ssh -T git@github.com"
 	record "would verify: SSH authentication to GitHub"
 else
-	ssh_output="$(run ssh -T git@github.com 2>&1 || true)"
+	info " ssh -T git@github.com"
+	ssh_output="$(ssh -T git@github.com 2>&1 || true)"
 	printf '%s\n' "$ssh_output"
 	grep -qF "successfully authenticated" <<<"$ssh_output" || die "SSH authentication to GitHub failed; fix it before cloning."
 	record "verified: SSH authentication to GitHub"
 fi
 
-info "Step 9/13: Clone ~/.env"
+info "Step 10/14: Clone ~/.env"
 if [ -e "$HOME/.env" ]; then
 	repo_is_expected "$HOME/.env" "$ENV_REPO" || die "$HOME/.env exists but is not the expected dotfiles repository."
 	info "$HOME/.env is already present; skipping clone."
@@ -319,7 +350,7 @@ else
 fi
 
 ai_team_ready=false
-info "Step 10/13: Clone ~/.ai-team"
+info "Step 11/14: Clone ~/.ai-team"
 if "$no_ai_team"; then
 	info "Skipping ~/.ai-team (--no-ai-team)."
 	record "skipped: ~/.ai-team (--no-ai-team)"
@@ -336,7 +367,7 @@ else
 	FAILURES+=("$HOME/.ai-team clone failed (private repository access denied or unavailable)")
 fi
 
-info "Step 11/13: Run dotfiles installer"
+info "Step 12/14: Run dotfiles installer"
 if "$no_install"; then
 	info "Skipping ~/.env/install.sh (--no-install)."
 	record "skipped: ~/.env/install.sh (--no-install)"
@@ -346,7 +377,7 @@ else
 	record "installed: dotfiles packages and shell configuration"
 fi
 
-info "Step 12/13: Install shared AI-team context"
+info "Step 13/14: Install shared AI-team context"
 if "$ai_team_ready"; then
 	run "$HOME/.ai-team/scripts/install.sh" --tools all
 	run "$HOME/.ai-team/scripts/verify.sh" --tools all
@@ -355,7 +386,7 @@ else
 	record "skipped: shared AI-team installer"
 fi
 
-info "Step 13/13: Final summary"
+info "Step 14/14: Final summary"
 ok "Installed or skipped because already present:"
 for item in "${SUMMARY[@]}"; do
 	printf '  %s\n' "$item"

@@ -4,7 +4,13 @@
 # symlink the config files brew/tmux/starship expect in their default locations.
 # Idempotent — safe to re-run.
 
-compaudit | xargs chmod g-w 2>/dev/null
+# compaudit needs an explicit autoload because this script runs under non-interactive zsh.
+autoload -Uz compaudit
+typeset -a insecure_dirs
+insecure_dirs=(${(f)"$(compaudit 2>/dev/null)"})
+if (( ${#insecure_dirs} )); then
+  chmod g-w $insecure_dirs
+fi
 
 read -r -d '' ZSHRCINIT <<- EOM
 ### Begin Env Init

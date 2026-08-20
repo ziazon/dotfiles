@@ -1,0 +1,373 @@
+#!/usr/bin/env bash
+#
+# Bootstrap a new macOS machine from scratch.
+#   1. Installs the Xcode CLT, Rosetta 2, Homebrew, git, and GitHub CLI
+#   2. Configures git identity, an SSH key, and GitHub authentication
+#   3. Clones ~/.env and the private ~/.ai-team shared-context repo
+#   4. Runs install.sh, then installs and verifies the shared AI-team context
+#
+# Safe to re-run: every completed step is detected and skipped.
+
+set -euo pipefail
+
+readonly COLOR_INFO=111
+readonly COLOR_OK=82
+readonly COLOR_WARN=214
+readonly COLOR_ERR=160
+
+info() { printf '\033[38;5;%sm%s\033[0m\n' "$COLOR_INFO" "$*"; }
+ok() { printf '\033[38;5;%sm%s\033[0m\n' "$COLOR_OK" "$*"; }
+warn() { printf '\033[38;5;%sm%s\033[0m\n' "$COLOR_WARN" "$*"; }
+err() { printf '\033[38;5;%sm%s\033[0m\n' "$COLOR_ERR" "$*" >&2; }
+die() {
+	err "$*"
+	exit 1
+}
+
+trap 'err "Bootstrap failed at line $LINENO."; err "Re-run this script; it is idempotent."' ERR
+
+usage() {
+	cat <<'EOF'
+Usage: bootstrap.sh [options]
+  --no-ai-team   Skip cloning/installing the private ~/.ai-team repo
+  --no-install   Stop after cloning; do not run ~/.env/install.sh
+  --dry-run      Print every action without executing anything that mutates
+  --help         Show this help
+EOF
+}
+
+no_ai_team=false
+no_install=false
+dry_run=false
+
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+	--no-ai-team) no_ai_team=true ;;
+	--no-install) no_install=true ;;
+	--dry-run) dry_run=true ;;
+	--help | -h)
+		usage
+		exit 0
+		;;
+	*)
+		err "unknown option: $1"
+		usage >&2
+		exit 2
+		;;
+	esac
+	shift
+done
+
+GIT_NAME="${GIT_NAME:-Zia Saidi}"
+GIT_EMAIL="${GIT_EMAIL:-zia.j.saidi@gmail.com}"
+GITHUB_USER="${GITHUB_USER:-ziazon}"
+ENV_REPO="${ENV_REPO:-git@github.com:ziazon/dotfiles.git}"
+AI_TEAM_REPO="${AI_TEAM_REPO:-git@github.com:ziazon/ai-team.git}"
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
+
+run() {
+	printf '\033[38;5;%sm' "$COLOR_INFO"
+	printf ' %q' "$@"
+	printf '\033[0m\n'
+	if "$dry_run"; then
+		return 0
+	fi
+	"$@"
+}
+
+append_block() {
+	local file="$1"
+	local block="$2"
+	printf '\n%s\n' "$block" >>"$file"
+}
+
+create_file() {
+	local file="$1"
+	local content="$2"
+	printf '%s\n' "$content" >"$file"
+}
+
+record() {
+	SUMMARY+=("$1")
+}
+
+repo_slug() {
+	printf '%s\n' "$1" | sed -E \
+		-e 's#^git@github\.com:##' \
+		-e 's#^https://github\.com/##' \
+		-e 's#\.git/?$##' \
+		-e 's#/$##'
+}
+
+repo_is_expected() {
+	local directory="$1"
+	local expected="$2"
+	local origin
+	[ -d "$directory" ] || return 1
+	git -C "$directory" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+	origin="$(git -C "$directory" remote get-url origin 2>/dev/null)" || return 1
+	[ "$(repo_slug "$origin")" = "$(repo_slug "$expected")" ]
+}
+
+ensure_git_setting() {
+	local key="$1"
+	local desired="$2"
+	local current
+	current="$(git config --global --get "$key" 2>/dev/null || true)"
+	if [ -z "$current" ]; then
+		run git config --global "$key" "$desired"
+		record "installed: git $key"
+	elif [ "$current" = "$desired" ]; then
+		record "already present: git $key"
+	else
+		warn "git $key is '$current'; leaving it unchanged (bootstrap default: '$desired')."
+		record "skipped: git $key (existing value retained)"
+	fi
+}
+
+SUMMARY=()
+FAILURES=()
+
+[ "$(uname -s)" = "Darwin" ] || die "bootstrap.sh supports macOS only."
+
+if "$dry_run"; then
+	warn "Dry run: interactive steps are being previewed, not performed."
+elif [ ! -t 0 ]; then
+	if (: </dev/tty) 2>/dev/null; then
+		exec </dev/tty
+	else
+		die "No terminal is available. Download bootstrap.sh and run it directly."
+	fi
+fi
+
+info "Step 1/13: Xcode command line tools"
+if xcode-select -p >/dev/null 2>&1; then
+	record "already present: Xcode command line tools"
+else
+	warn "Xcode.app alone is not the command line tools; macOS will open their installer."
+	run xcode-select --install
+	if "$dry_run"; then
+		record "would install: Xcode command line tools"
+	else
+		waited=0
+		until xcode-select -p >/dev/null 2>&1; do
+			if [ "$waited" -ge 1800 ]; then
+				die "Finish the command line tools GUI installation, then re-run bootstrap.sh."
+			fi
+			info "Waiting for the command line tools installer..."
+			sleep 15
+			waited=$((waited + 15))
+		done
+		record "installed: Xcode command line tools"
+	fi
+fi
+
+info "Step 2/13: Rosetta 2"
+if [ "$(uname -m)" = "arm64" ] && [ ! -e /usr/libexec/rosetta ]; then
+	run softwareupdate --install-rosetta --agree-to-license
+	record "installed: Rosetta 2"
+elif [ "$(uname -m)" = "arm64" ]; then
+	record "already present: Rosetta 2"
+fi
+
+info "Step 3/13: Homebrew"
+if command -v brew >/dev/null 2>&1; then
+	record "already present: Homebrew"
+else
+	if "$dry_run"; then
+		# Show the literal command without downloading it.
+		# shellcheck disable=SC2016
+		info ' /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+	else
+		/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+	fi
+	record "installed: Homebrew"
+fi
+
+BREW_BIN=""
+for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+	if [ -x "$candidate" ]; then
+		BREW_BIN="$candidate"
+		break
+	fi
+done
+if [ -z "$BREW_BIN" ] && "$dry_run"; then
+	if [ "$(uname -m)" = "arm64" ]; then
+		BREW_BIN=/opt/homebrew/bin/brew
+	else
+		BREW_BIN=/usr/local/bin/brew
+	fi
+fi
+[ -n "$BREW_BIN" ] || die "Homebrew was not found after installation."
+if [ -x "$BREW_BIN" ]; then
+	eval "$("$BREW_BIN" shellenv)"
+fi
+
+ZPROFILE_MARKER="### Begin Homebrew Init"
+read -r -d '' ZPROFILE_BLOCK <<EOF || true
+$ZPROFILE_MARKER
+eval "\$($BREW_BIN shellenv)"
+### End Homebrew Init
+EOF
+if [ -f "$HOME/.zprofile" ] && grep -qF "$ZPROFILE_MARKER" "$HOME/.zprofile"; then
+	record "already present: Homebrew init in ~/.zprofile"
+else
+	run touch "$HOME/.zprofile"
+	run append_block "$HOME/.zprofile" "$ZPROFILE_BLOCK"
+	record "installed: Homebrew init in ~/.zprofile"
+fi
+
+info "Step 4/13: brew git and gh"
+for formula in git gh; do
+	if [ -x "$BREW_BIN" ] && "$BREW_BIN" list --formula "$formula" >/dev/null 2>&1; then
+		record "already present: brew formula $formula"
+	else
+		run "$BREW_BIN" install "$formula"
+		record "installed: brew formula $formula"
+	fi
+done
+
+info "Step 5/13: git identity and defaults"
+ensure_git_setting user.name "$GIT_NAME"
+ensure_git_setting user.email "$GIT_EMAIL"
+ensure_git_setting init.defaultBranch main
+ensure_git_setting core.excludesfile "$HOME/.gitignore_global"
+if [ -e "$HOME/.gitignore_global" ]; then
+	record "already present: ~/.gitignore_global"
+else
+	run create_file "$HOME/.gitignore_global" .DS_Store
+	record "installed: ~/.gitignore_global"
+fi
+
+info "Step 6/13: SSH key"
+run mkdir -p "$HOME/.ssh"
+run chmod 700 "$HOME/.ssh"
+if [ -f "$SSH_KEY" ]; then
+	record "already present: SSH key $SSH_KEY"
+else
+	run ssh-keygen -t ed25519 -C "$GIT_EMAIL" -f "$SSH_KEY"
+	record "installed: SSH key $SSH_KEY"
+fi
+
+SSH_CONFIG_MARKER="### Begin GitHub SSH"
+read -r -d '' SSH_CONFIG_BLOCK <<EOF || true
+$SSH_CONFIG_MARKER
+Host github.com
+  AddKeysToAgent yes
+  UseKeychain yes
+  IdentityFile $SSH_KEY
+### End GitHub SSH
+EOF
+if [ -f "$HOME/.ssh/config" ] && grep -qF "$SSH_CONFIG_MARKER" "$HOME/.ssh/config"; then
+	record "already present: GitHub SSH config"
+else
+	run touch "$HOME/.ssh/config"
+	run chmod 600 "$HOME/.ssh/config"
+	run append_block "$HOME/.ssh/config" "$SSH_CONFIG_BLOCK"
+	record "installed: GitHub SSH config"
+fi
+if [ -f "$SSH_KEY" ] || ! "$dry_run"; then
+	run ssh-add --apple-use-keychain "$SSH_KEY"
+else
+	info "Would add the newly generated SSH key to the Apple keychain."
+fi
+
+info "Step 7/13: GitHub CLI authentication"
+if gh auth status >/dev/null 2>&1; then
+	record "already present: GitHub CLI authentication"
+else
+	warn "GitHub authentication needs you: complete this step in your browser."
+	run gh auth login
+	record "installed: GitHub CLI authentication"
+fi
+
+if [ -f "$SSH_KEY.pub" ]; then
+	ssh_key_body="$(awk '{print $2}' "$SSH_KEY.pub")"
+	if gh ssh-key list 2>/dev/null | grep -qF "$ssh_key_body"; then
+		record "already present: SSH public key on GitHub"
+	else
+		key_title="$(scutil --get ComputerName 2>/dev/null || hostname -s)"
+		run gh ssh-key add "$SSH_KEY.pub" --title "$key_title"
+		record "installed: SSH public key on GitHub"
+	fi
+elif "$dry_run"; then
+	info "Would register the newly generated SSH public key with GitHub."
+	record "would install: SSH public key on GitHub"
+else
+	die "SSH public key not found at $SSH_KEY.pub."
+fi
+
+info "Step 8/13: Verify SSH to GitHub"
+if "$dry_run"; then
+	run ssh -T git@github.com
+	record "would verify: SSH authentication to GitHub"
+else
+	ssh_output="$(run ssh -T git@github.com 2>&1 || true)"
+	printf '%s\n' "$ssh_output"
+	grep -qF "successfully authenticated" <<<"$ssh_output" || die "SSH authentication to GitHub failed; fix it before cloning."
+	record "verified: SSH authentication to GitHub"
+fi
+
+info "Step 9/13: Clone ~/.env"
+if [ -e "$HOME/.env" ]; then
+	repo_is_expected "$HOME/.env" "$ENV_REPO" || die "$HOME/.env exists but is not the expected dotfiles repository."
+	info "$HOME/.env is already present; skipping clone."
+	record "already present: ~/.env"
+else
+	run git clone "$ENV_REPO" "$HOME/.env"
+	record "installed: ~/.env"
+fi
+
+ai_team_ready=false
+info "Step 10/13: Clone ~/.ai-team"
+if "$no_ai_team"; then
+	info "Skipping ~/.ai-team (--no-ai-team)."
+	record "skipped: ~/.ai-team (--no-ai-team)"
+elif [ -e "$HOME/.ai-team" ]; then
+	repo_is_expected "$HOME/.ai-team" "$AI_TEAM_REPO" || die "$HOME/.ai-team exists but is not the expected shared-context repository."
+	info "$HOME/.ai-team is already present; skipping clone."
+	ai_team_ready=true
+	record "already present: ~/.ai-team"
+elif run git clone "$AI_TEAM_REPO" "$HOME/.ai-team"; then
+	ai_team_ready=true
+	record "installed: ~/.ai-team"
+else
+	warn "Could not clone the private ~/.ai-team repo; access may be denied. Continuing without it."
+	FAILURES+=("$HOME/.ai-team clone failed (private repository access denied or unavailable)")
+fi
+
+info "Step 11/13: Run dotfiles installer"
+if "$no_install"; then
+	info "Skipping ~/.env/install.sh (--no-install)."
+	record "skipped: ~/.env/install.sh (--no-install)"
+else
+	warn "install.sh asks for your sudo password immediately, then runs largely unattended for 45–90 minutes."
+	run "$HOME/.env/install.sh"
+	record "installed: dotfiles packages and shell configuration"
+fi
+
+info "Step 12/13: Install shared AI-team context"
+if "$ai_team_ready"; then
+	run "$HOME/.ai-team/scripts/install.sh" --tools all
+	run "$HOME/.ai-team/scripts/verify.sh" --tools all
+	record "installed and verified: shared AI-team context"
+else
+	record "skipped: shared AI-team installer"
+fi
+
+info "Step 13/13: Final summary"
+ok "Installed or skipped because already present:"
+for item in "${SUMMARY[@]}"; do
+	printf '  %s\n' "$item"
+done
+for failure in "${FAILURES[@]}"; do
+	warn "⚠ $failure"
+done
+printf '%s\n' \
+	"📋 sign in to Claude Code and Codex" \
+	"📋 re-add Claude Code plugin marketplaces" \
+	"📋 copy ~/.claude/ (settings.json, hooks/, scripts/, commands/, personal/, projects/*/memory/) from the previous machine" \
+	"📋 restore ~/.env/work-stuff.zsh" \
+	"📋 import or regenerate the GPG signing key" \
+	"📋 colima start"
+warn "Open a new shell with 'exec zsh' before nvm, pyenv, and the new PATH are available."

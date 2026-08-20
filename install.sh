@@ -10,6 +10,13 @@
 
 touch "$HOME/.zshrc"
 
+warnings=()
+
+warn() {
+  warnings+=("$1")
+  printf '\033[38;5;214mWARNING: %s\033[0m\n' "$1"
+}
+
 # Keep sudo alive for the duration of the script.
 sudo -v
 while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
@@ -26,8 +33,29 @@ elif [ -x /usr/local/bin/brew ]; then
   eval "$(/usr/local/bin/brew shellenv)"
 fi
 
+# HashiCorp's tap must be explicitly trusted before Homebrew can load its formulae.
+if ! brew tap | grep -Fxq 'hashicorp/tap'; then
+  brew tap hashicorp/tap || warn "failed to tap hashicorp/tap."
+fi
+# `brew trust --tap` is idempotent, so no guard is needed.
+brew trust --tap hashicorp/tap || warn "failed to trust hashicorp/tap."
+
 # --- Packages (formulae + casks) ---------------------------------------------
 brew bundle --file="$HOME/.env/Brewfile"
+brew_bundle_status=$?
+brew_bundle_check_output="$(brew bundle check --file="$HOME/.env/Brewfile" --verbose 2>&1)"
+brew_bundle_check_status=$?
+printf '%s\n' "$brew_bundle_check_output"
+
+if [ "$brew_bundle_status" -ne 0 ] || [ "$brew_bundle_check_status" -ne 0 ]; then
+  printf '\033[38;5;214mWARNING: Homebrew did not install every Brewfile entry:\033[0m\n'
+  if [ "$brew_bundle_status" -ne 0 ]; then
+    warn "brew bundle exited with status $brew_bundle_status."
+  fi
+  if [ "$brew_bundle_check_status" -ne 0 ]; then
+    warn "brew bundle check reports missing entries: $brew_bundle_check_output"
+  fi
+fi
 
 # --- tmux plugin manager ------------------------------------------------------
 mkdir -p "$HOME/.tmux"
@@ -41,12 +69,23 @@ fi
 export PATH="$HOME/.cargo/bin:$PATH"
 
 # Rust-based CLI tools (aliased in aliases.zsh)
-cargo install bat du-dust eza prettydiff procs ripgrep
+if command -v cargo >/dev/null 2>&1; then
+  # prettydiff 0.9.0 is library-only; 0.6.2 is the last version with the binary used by the diff alias.
+  for crate in bat du-dust eza prettydiff@0.6.2 procs ripgrep; do
+    cargo install --locked "$crate" || warn "cargo failed to install $crate."
+  done
+else
+  warn "cargo is missing; skipped installing Rust-based CLI tools."
+fi
 
 # --- Python (pyenv) -----------------------------------------------------------
 printf '\033[38;5;111mInstalling Python 3.12 via pyenv\033[0m\n'
-pyenv install --skip-existing 3.12
-pyenv global 3.12
+if command -v pyenv >/dev/null 2>&1; then
+  pyenv install --skip-existing 3.12
+  pyenv global 3.12
+else
+  warn "pyenv is missing; skipped installing and selecting Python 3.12."
+fi
 
 # Poetry (current installer; installs to ~/.local/bin)
 curl -sSL https://install.python-poetry.org | python3 -
@@ -63,11 +102,19 @@ nvm install --lts
 nvm alias default 'lts/*'
 
 # Global npm tooling
-npm i -g markdownlint-cli2
+if command -v npm >/dev/null 2>&1; then
+  npm i -g markdownlint-cli2
+else
+  warn "npm is missing; skipped installing markdownlint-cli2."
+fi
 
 # --- Go tools -----------------------------------------------------------------
-go install golang.org/x/tools/gopls@latest
-go install honnef.co/go/tools/cmd/staticcheck@latest
+if command -v go >/dev/null 2>&1; then
+  go install golang.org/x/tools/gopls@latest
+  go install honnef.co/go/tools/cmd/staticcheck@latest
+else
+  warn "go is missing; skipped installing gopls and staticcheck."
+fi
 
 # --- AWS CLI ------------------------------------------------------------------
 if ! command -v aws >/dev/null 2>&1; then
@@ -78,3 +125,12 @@ fi
 
 # --- Wire up the shell --------------------------------------------------------
 zsh "$HOME/.env/configure.zsh"
+
+if [ "${#warnings[@]}" -gt 0 ]; then
+  printf '\033[38;5;160mINSTALL COMPLETED WITH PROBLEMS:\033[0m\n'
+  for warning in "${warnings[@]}"; do
+    printf '\033[38;5;214m- %s\033[0m\n' "$warning"
+  done
+else
+  printf '\033[38;5;111mInstall completed cleanly.\033[0m\n'
+fi

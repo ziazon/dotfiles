@@ -123,14 +123,13 @@ brew "sqlmap"
 brew "binwalk"
 brew "foremost"
 brew "fcrackzip"
-brew "hashpump"
+# hashpump and tcptrace were dropped from homebrew-core.
 brew "cifer"
 brew "dex2jar"
 brew "dns2tcp"
 brew "knock"
 brew "tcpflow"
 brew "tcpreplay"
-brew "tcptrace"
 
 ## Editors
 brew "neovim"

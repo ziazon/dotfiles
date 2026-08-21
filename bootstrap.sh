@@ -38,6 +38,7 @@ usage() {
 Usage: bootstrap.sh [options]
   --no-ai-team   Skip cloning/installing the private ~/.ai-team repo
   --no-install   Stop after cloning; do not run ~/.env/install.sh
+  --config-only  Configure one user without packages, sudo, or GitHub login
   --dry-run      Print every action without executing anything that mutates
   --help         Show this help
 EOF
@@ -45,12 +46,14 @@ EOF
 
 no_ai_team=false
 no_install=false
+config_only=false
 dry_run=false
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
 	--no-ai-team) no_ai_team=true ;;
 	--no-install) no_install=true ;;
+	--config-only) config_only=true ;;
 	--dry-run) dry_run=true ;;
 	--help | -h)
 		usage
@@ -65,13 +68,23 @@ while [ "$#" -gt 0 ]; do
 	shift
 done
 
+if "$config_only"; then
+	no_ai_team=true
+fi
+
 GIT_NAME="${GIT_NAME:-}"
 GIT_EMAIL="${GIT_EMAIL:-}"
 if [ -z "${ENV_REPO:-}" ] &&
 	git -C "$HOME/.env" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 	ENV_REPO="$(git -C "$HOME/.env" remote get-url origin 2>/dev/null || true)"
 fi
-ENV_REPO="${ENV_REPO:-git@github.com:ziazon/dotfiles.git}"
+if [ -z "${ENV_REPO:-}" ]; then
+	if "$config_only"; then
+		ENV_REPO="https://github.com/ziazon/dotfiles.git"
+	else
+		ENV_REPO="git@github.com:ziazon/dotfiles.git"
+	fi
+fi
 AI_TEAM_REPO="${AI_TEAM_REPO:-}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 
@@ -304,6 +317,8 @@ fi
 info "Step 1/14: Xcode command line tools"
 if xcode-select -p >/dev/null 2>&1; then
 	record "already present: Xcode command line tools"
+elif "$config_only"; then
+	die "Xcode command line tools are required; an admin must install them first."
 else
 	warn "Xcode.app alone is not the command line tools; macOS will open their installer."
 	run xcode-select --install
@@ -324,7 +339,10 @@ else
 fi
 
 info "Step 2/14: Rosetta 2"
-if [ "$(uname -m)" = "arm64" ] && [ ! -x /usr/libexec/rosetta/oahd ]; then
+if "$config_only"; then
+	info "Skipping Rosetta 2 (--config-only)."
+	record "skipped: Rosetta 2 (--config-only)"
+elif [ "$(uname -m)" = "arm64" ] && [ ! -x /usr/libexec/rosetta/oahd ]; then
 	run softwareupdate --install-rosetta --agree-to-license
 	record "installed: Rosetta 2"
 elif [ "$(uname -m)" = "arm64" ]; then
@@ -342,6 +360,8 @@ BREW_BIN="$BREW_PREFIX/bin/brew"
 info "Step 3/14: Homebrew"
 if brew_is_usable; then
 	record "already present: Homebrew"
+elif "$config_only"; then
+	die "Homebrew must already be installed on the machine for --config-only."
 else
 	if [ "$(uname -m)" = "arm64" ] && [ -e /usr/local/bin/brew ]; then
 		warn "Ignoring Intel Homebrew at /usr/local; installing native Homebrew at $BREW_PREFIX."
@@ -384,14 +404,19 @@ else
 fi
 
 info "Step 4/14: brew git and gh"
-for formula in git gh; do
-	if [ -x "$BREW_BIN" ] && "$BREW_BIN" list --formula "$formula" >/dev/null 2>&1; then
-		record "already present: brew formula $formula"
-	else
-		run "$BREW_BIN" install "$formula"
-		record "installed: brew formula $formula"
-	fi
-done
+if "$config_only"; then
+	info "Skipping brew git and gh installation (--config-only)."
+	record "skipped: brew git and gh installation (--config-only)"
+else
+	for formula in git gh; do
+		if [ -x "$BREW_BIN" ] && "$BREW_BIN" list --formula "$formula" >/dev/null 2>&1; then
+			record "already present: brew formula $formula"
+		else
+			run "$BREW_BIN" install "$formula"
+			record "installed: brew formula $formula"
+		fi
+	done
+fi
 
 info "Step 5/14: git identity and defaults"
 resolve_git_identity user.name GIT_NAME name
@@ -408,14 +433,18 @@ else
 fi
 
 info "Step 6/14: SSH key"
-run mkdir -p "$HOME/.ssh"
-run chmod 700 "$HOME/.ssh"
-if [ -f "$SSH_KEY" ]; then
-	record "already present: SSH key $SSH_KEY"
+if "$config_only"; then
+	info "Skipping SSH key setup (--config-only)."
+	record "skipped: SSH key setup (--config-only)"
 else
-	run ssh-keygen -t ed25519 -C "$GIT_EMAIL" -f "$SSH_KEY"
-	record "installed: SSH key $SSH_KEY"
-fi
+	run mkdir -p "$HOME/.ssh"
+	run chmod 700 "$HOME/.ssh"
+	if [ -f "$SSH_KEY" ]; then
+		record "already present: SSH key $SSH_KEY"
+	else
+		run ssh-keygen -t ed25519 -C "$GIT_EMAIL" -f "$SSH_KEY"
+		record "installed: SSH key $SSH_KEY"
+	fi
 
 SSH_CONFIG_MARKER="### Begin GitHub SSH"
 read -r -d '' SSH_CONFIG_BLOCK <<EOF || true
@@ -439,34 +468,43 @@ if [ -f "$SSH_KEY" ] || ! "$dry_run"; then
 else
 	info "Would add the newly generated SSH key to the Apple keychain."
 fi
-
-info "Step 7/14: GitHub CLI authentication"
-if gh auth status >/dev/null 2>&1; then
-	record "already present: GitHub CLI authentication"
-else
-	warn "GitHub authentication needs you: complete this step in your browser."
-	run gh auth login
-	record "installed: GitHub CLI authentication"
 fi
 
-if [ -f "$SSH_KEY.pub" ]; then
-	ssh_key_body="$(awk '{print $2}' "$SSH_KEY.pub")"
-	if gh ssh-key list 2>/dev/null | grep -qF "$ssh_key_body"; then
-		record "already present: SSH public key on GitHub"
-	else
-		key_title="$(scutil --get ComputerName 2>/dev/null || hostname -s)"
-		run gh ssh-key add "$SSH_KEY.pub" --title "$key_title"
-		record "installed: SSH public key on GitHub"
-	fi
-elif "$dry_run"; then
-	info "Would register the newly generated SSH public key with GitHub."
-	record "would install: SSH public key on GitHub"
+info "Step 7/14: GitHub CLI authentication"
+if "$config_only"; then
+	info "Skipping GitHub CLI authentication (--config-only)."
+	record "skipped: GitHub CLI authentication (--config-only)"
 else
-	die "SSH public key not found at $SSH_KEY.pub."
+	if gh auth status >/dev/null 2>&1; then
+		record "already present: GitHub CLI authentication"
+	else
+		warn "GitHub authentication needs you: complete this step in your browser."
+		run gh auth login
+		record "installed: GitHub CLI authentication"
+	fi
+
+	if [ -f "$SSH_KEY.pub" ]; then
+		ssh_key_body="$(awk '{print $2}' "$SSH_KEY.pub")"
+		if gh ssh-key list 2>/dev/null | grep -qF "$ssh_key_body"; then
+			record "already present: SSH public key on GitHub"
+		else
+			key_title="$(scutil --get ComputerName 2>/dev/null || hostname -s)"
+			run gh ssh-key add "$SSH_KEY.pub" --title "$key_title"
+			record "installed: SSH public key on GitHub"
+		fi
+	elif "$dry_run"; then
+		info "Would register the newly generated SSH public key with GitHub."
+		record "would install: SSH public key on GitHub"
+	else
+		die "SSH public key not found at $SSH_KEY.pub."
+	fi
 fi
 
 info "Step 8/14: Seed GitHub SSH host key"
-if ssh-keygen -F github.com >/dev/null 2>&1; then
+if "$config_only"; then
+	info "Skipping GitHub SSH host key setup (--config-only)."
+	record "skipped: GitHub SSH host key setup (--config-only)"
+elif ssh-keygen -F github.com >/dev/null 2>&1; then
 	record "already present: github.com SSH host key"
 else
 	github_host_key_file="$(mktemp)"
@@ -493,7 +531,10 @@ else
 fi
 
 info "Step 9/14: Verify SSH to GitHub"
-if "$dry_run"; then
+if "$config_only"; then
+	info "Skipping SSH authentication verification (--config-only)."
+	record "skipped: SSH authentication verification (--config-only)"
+elif "$dry_run"; then
 	info " ssh -T git@github.com"
 	record "would verify: SSH authentication to GitHub"
 else
@@ -506,6 +547,7 @@ fi
 
 info "Step 10/14: Clone ~/.env"
 if [ -e "$HOME/.env" ]; then
+	# repo_slug() already normalises git@ and https:// to the same slug, so an existing SSH-cloned checkout is still accepted.
 	repo_is_expected "$HOME/.env" "$ENV_REPO" || die "$HOME/.env exists but is not the expected dotfiles repository."
 	# A migrated home directory can carry a stale checkout whose months-old Brewfile breaks installation.
 	info "$HOME/.env is already present; checking for updates."
@@ -537,7 +579,11 @@ else
 fi
 
 info "Step 12/14: Run dotfiles installer"
-if "$no_install"; then
+if "$config_only"; then
+	run touch "$HOME/.zshrc"
+	run "$HOME/.env/configure.zsh"
+	record "configured: shell (configure.zsh, no packages installed)"
+elif "$no_install"; then
 	info "Skipping ~/.env/install.sh (--no-install)."
 	record "skipped: ~/.env/install.sh (--no-install)"
 else

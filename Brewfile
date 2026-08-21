@@ -153,6 +153,7 @@ cask "claude"            # Claude desktop app
 cask "claude-code"       # Claude Code CLI
 cask "codex"             # OpenAI Codex CLI
 cask "gitkraken"
+cask "google-chrome"     # claude-in-chrome MCP tools attach to this profile
 cask "postman"
 cask "gpg-suite"
 cask "karabiner-elements"

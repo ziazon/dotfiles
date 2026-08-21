@@ -30,7 +30,7 @@ if [ -n "$BREW_PREFIX" ]; then
   unset pg_bin
   PATH="$BREW_PREFIX/sbin:$PATH"
 fi
-PATH="$HOME/.cargo/bin:$PATH"     # rust tools (bat, eza, rg, ...)
+PATH="$HOME/.cargo/bin:$PATH"     # prettydiff, rustup, ad-hoc cargo installs
 PATH="$HOME/.local/bin:$PATH"     # poetry, pipx
 PATH="$PYENV_ROOT/bin:$PATH"
 

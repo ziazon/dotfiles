@@ -20,6 +20,11 @@ brew "tree"
 brew "watch"
 
 ## Core CLI utilities
+brew "bat"
+brew "dust"              # du-dust crate
+brew "eza"
+brew "procs"
+brew "ripgrep"           # provides rg
 brew "grep"              # GNU grep (gnubin)
 brew "findutils"         # GNU find/xargs/locate (gnubin)
 brew "wget"

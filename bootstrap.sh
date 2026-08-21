@@ -134,6 +134,90 @@ record() {
 
 brew_is_usable() { [ -x "$BREW_BIN" ] && "$BREW_BIN" --version >/dev/null 2>&1; }
 
+update_env_checkout() {
+	local directory="$1"
+	local default_branch
+	local env_head_after
+	local env_head_before
+	local env_upstream
+	local local_commits
+	local remote_head
+
+	# Pruning makes a deleted upstream visible instead of preserving a reassuring stale ref.
+	run git -C "$directory" fetch --prune origin
+	if ! remote_head="$(git -C "$directory" ls-remote --symref origin HEAD 2>/dev/null)"; then
+		remote_head=""
+	fi
+	default_branch="$(printf '%s\n' "$remote_head" | awk '$1 == "ref:" && $2 ~ /^refs\/heads\// { sub(/^refs\/heads\//, "", $2); print $2; exit }')"
+	if [ -z "$default_branch" ]; then
+		warn "$directory remote default branch could not be resolved; leaving it unchanged."
+		record "not updated: ~/.env (remote default branch unresolved)"
+		return 0
+	fi
+	# A real run fetches before this check; only dry-run can leave the resolved remote ref absent.
+	if ! git -C "$directory" show-ref --verify --quiet "refs/remotes/origin/$default_branch"; then
+		warn "$directory has not fetched origin/$default_branch yet; run again without --dry-run to fetch it."
+		record "not updated: ~/.env (origin/$default_branch not fetched yet; run without --dry-run)"
+		return 0
+	fi
+
+	if [ -n "$(git -C "$directory" status --porcelain)" ]; then
+		warn "$directory has local changes; leaving it unchanged."
+		record "not updated: ~/.env (local changes)"
+		return 0
+	fi
+
+	env_upstream="$(git -C "$directory" rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null || true)"
+	if [ "$env_upstream" = "origin/$default_branch" ]; then
+		env_head_before="$(git -C "$directory" rev-parse HEAD)"
+		if run git -C "$directory" merge --ff-only "$env_upstream"; then
+			if "$dry_run" && [ "$env_head_before" != "$(git -C "$directory" rev-parse "$env_upstream")" ]; then
+				if git -C "$directory" merge-base --is-ancestor HEAD "$env_upstream"; then
+					record "would update: ~/.env"
+				else
+					warn "$directory could not be fast-forwarded to $env_upstream; leaving it unchanged."
+					record "not updated: ~/.env (fast-forward failed)"
+				fi
+			else
+				env_head_after="$(git -C "$directory" rev-parse HEAD)"
+				if [ "$env_head_before" = "$env_head_after" ]; then
+					record "already up to date: ~/.env"
+				else
+					record "updated: ~/.env"
+				fi
+			fi
+		else
+			warn "$directory could not be fast-forwarded to $env_upstream; leaving it unchanged."
+			record "not updated: ~/.env (fast-forward failed)"
+		fi
+		return 0
+	fi
+
+	# Switching branches is safe only when every local HEAD commit is already on the default branch.
+	local_commits="$(git -C "$directory" rev-list --count "origin/$default_branch..HEAD")"
+	if [ "$local_commits" -ne 0 ]; then
+		warn "$directory has local commits not on $default_branch; leaving it unchanged."
+		record "not updated: ~/.env (local commits not on $default_branch)"
+		return 0
+	fi
+
+	if git -C "$directory" show-ref --verify --quiet "refs/heads/$default_branch"; then
+		run git -C "$directory" checkout "$default_branch"
+		if ! run git -C "$directory" merge --ff-only "origin/$default_branch"; then
+			warn "$directory could not be fast-forwarded to origin/$default_branch."
+			record "not updated: ~/.env (fast-forward failed)"
+			return 0
+		fi
+	else
+		run git -C "$directory" checkout -b "$default_branch" --track "origin/$default_branch"
+	fi
+	if "$dry_run"; then
+		record "would switch to $default_branch and update: ~/.env"
+	else
+		record "switched to $default_branch and updated: ~/.env"
+	fi
+}
+
 repo_slug() {
 	printf '%s\n' "$1" | sed -E \
 		-e 's#^git@github\.com:##' \
@@ -425,36 +509,7 @@ if [ -e "$HOME/.env" ]; then
 	repo_is_expected "$HOME/.env" "$ENV_REPO" || die "$HOME/.env exists but is not the expected dotfiles repository."
 	# A migrated home directory can carry a stale checkout whose months-old Brewfile breaks installation.
 	info "$HOME/.env is already present; checking for updates."
-	run git -C "$HOME/.env" fetch origin
-	if ! env_upstream="$(git -C "$HOME/.env" rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null)"; then
-		warn "$HOME/.env has no upstream branch; leaving it unchanged."
-		record "not updated: ~/.env (no upstream branch)"
-	elif [ -n "$(git -C "$HOME/.env" status --porcelain)" ]; then
-		warn "$HOME/.env has local changes; leaving it unchanged."
-		record "not updated: ~/.env (local changes)"
-	else
-		env_head_before="$(git -C "$HOME/.env" rev-parse HEAD)"
-		if run git -C "$HOME/.env" merge --ff-only "$env_upstream"; then
-			if "$dry_run" && [ "$env_head_before" != "$(git -C "$HOME/.env" rev-parse "$env_upstream")" ]; then
-				if git -C "$HOME/.env" merge-base --is-ancestor HEAD "$env_upstream"; then
-					record "would update: ~/.env"
-				else
-					warn "$HOME/.env could not be fast-forwarded to $env_upstream; leaving it unchanged."
-					record "not updated: ~/.env (fast-forward failed)"
-				fi
-			else
-				env_head_after="$(git -C "$HOME/.env" rev-parse HEAD)"
-				if [ "$env_head_before" = "$env_head_after" ]; then
-					record "already up to date: ~/.env"
-				else
-					record "updated: ~/.env"
-				fi
-			fi
-		else
-			warn "$HOME/.env could not be fast-forwarded to $env_upstream; leaving it unchanged."
-			record "not updated: ~/.env (fast-forward failed)"
-		fi
-	fi
+	update_env_checkout "$HOME/.env"
 else
 	run git clone "$ENV_REPO" "$HOME/.env"
 	record "installed: ~/.env"

@@ -91,6 +91,37 @@ append_block() {
 	printf '\n%s\n' "$block" >>"$file"
 }
 
+replace_block() {
+	local file="$1"
+	local block="$2"
+	local start="$3"
+	local end="$4"
+	local temp
+	temp="$(mktemp "${file}.tmp.XXXXXX")"
+	cp -p "$file" "$temp"
+	# Pass the multiline block through the environment because awk -v rejects raw newlines.
+	if ! BLOCK="$block" awk -v start="$start" -v end="$end" '
+		$0 == start {
+			if (!replaced) {
+				print ENVIRON["BLOCK"]
+				replaced = 1
+			}
+			skipping = 1
+			next
+		}
+		skipping && $0 == end {
+			skipping = 0
+			next
+		}
+		!skipping { print }
+		END { if (skipping) exit 1 }
+	' "$file" >"$temp"; then
+		rm -f "$temp"
+		return 1
+	fi
+	mv "$temp" "$file"
+}
+
 create_file() {
 	local file="$1"
 	local content="$2"
@@ -100,6 +131,8 @@ create_file() {
 record() {
 	SUMMARY+=("$1")
 }
+
+brew_is_usable() { [ -x "$BREW_BIN" ] && "$BREW_BIN" --version >/dev/null 2>&1; }
 
 repo_slug() {
 	printf '%s\n' "$1" | sed -E \
@@ -207,17 +240,29 @@ else
 fi
 
 info "Step 2/14: Rosetta 2"
-if [ "$(uname -m)" = "arm64" ] && [ ! -e /usr/libexec/rosetta ]; then
+if [ "$(uname -m)" = "arm64" ] && [ ! -x /usr/libexec/rosetta/oahd ]; then
 	run softwareupdate --install-rosetta --agree-to-license
 	record "installed: Rosetta 2"
 elif [ "$(uname -m)" = "arm64" ]; then
 	record "already present: Rosetta 2"
 fi
 
+# Homebrew under the other architecture prefix cannot run natively and is never accepted.
+if [ "$(uname -m)" = "arm64" ]; then
+	BREW_PREFIX=/opt/homebrew
+else
+	BREW_PREFIX=/usr/local
+fi
+BREW_BIN="$BREW_PREFIX/bin/brew"
+
 info "Step 3/14: Homebrew"
-if command -v brew >/dev/null 2>&1; then
+if brew_is_usable; then
 	record "already present: Homebrew"
 else
+	if [ "$(uname -m)" = "arm64" ] && [ -e /usr/local/bin/brew ]; then
+		warn "Ignoring Intel Homebrew at /usr/local; installing native Homebrew at $BREW_PREFIX."
+		record "ignored: Intel Homebrew at /usr/local"
+	fi
 	if "$dry_run"; then
 		# Show the literal command without downloading it.
 		# shellcheck disable=SC2016
@@ -226,24 +271,12 @@ else
 		/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 	fi
 	record "installed: Homebrew"
+	if ! "$dry_run"; then
+		brew_is_usable || die "Homebrew is not usable at $BREW_BIN after installation."
+	fi
 fi
 
-BREW_BIN=""
-for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
-	if [ -x "$candidate" ]; then
-		BREW_BIN="$candidate"
-		break
-	fi
-done
-if [ -z "$BREW_BIN" ] && "$dry_run"; then
-	if [ "$(uname -m)" = "arm64" ]; then
-		BREW_BIN=/opt/homebrew/bin/brew
-	else
-		BREW_BIN=/usr/local/bin/brew
-	fi
-fi
-[ -n "$BREW_BIN" ] || die "Homebrew was not found after installation."
-if [ -x "$BREW_BIN" ]; then
+if brew_is_usable; then
 	eval "$("$BREW_BIN" shellenv)"
 fi
 
@@ -254,7 +287,12 @@ eval "\$($BREW_BIN shellenv)"
 ### End Homebrew Init
 EOF
 if [ -f "$HOME/.zprofile" ] && grep -qF "$ZPROFILE_MARKER" "$HOME/.zprofile"; then
-	record "already present: Homebrew init in ~/.zprofile"
+	if grep -qF "$BREW_BIN shellenv" "$HOME/.zprofile"; then
+		record "already present: Homebrew init in ~/.zprofile"
+	else
+		run replace_block "$HOME/.zprofile" "$ZPROFILE_BLOCK" "$ZPROFILE_MARKER" "### End Homebrew Init"
+		record "updated: Homebrew init in ~/.zprofile"
+	fi
 else
 	run touch "$HOME/.zprofile"
 	run append_block "$HOME/.zprofile" "$ZPROFILE_BLOCK"

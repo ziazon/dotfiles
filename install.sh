@@ -22,15 +22,23 @@ sudo -v
 while true; do sudo -n true; sleep 60; kill -0 "$$" || exit; done 2>/dev/null &
 
 # --- Homebrew -----------------------------------------------------------------
-if ! command -v brew >/dev/null 2>&1; then
+if [ "$(uname -m)" = "arm64" ]; then
+  BREW_PREFIX=/opt/homebrew
+else
+  BREW_PREFIX=/usr/local
+fi
+BREW_BIN="$BREW_PREFIX/bin/brew"
+
+if ! "$BREW_BIN" --version >/dev/null 2>&1; then
+  if [ "$(uname -m)" = "arm64" ] && [ -e /usr/local/bin/brew ]; then
+    warn "Ignoring Intel Homebrew at /usr/local; installing native Homebrew at $BREW_PREFIX."
+  fi
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
 
-# Put brew on PATH for this script, whichever prefix it landed in.
-if [ -x /opt/homebrew/bin/brew ]; then
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -x /usr/local/bin/brew ]; then
-  eval "$(/usr/local/bin/brew shellenv)"
+# Put native brew on PATH for this script.
+if [ -x "$BREW_BIN" ]; then
+  eval "$("$BREW_BIN" shellenv)"
 fi
 
 # HashiCorp's tap must be explicitly trusted before Homebrew can load its formulae.

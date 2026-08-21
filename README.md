@@ -59,6 +59,7 @@ brew bundle dump --file=~/.env/Brewfile --force
 | `Brewfile`       | Declarative formula/cask manifest (`brew bundle`)       |
 | `bootstrap.sh`   | From-scratch bootstrap (macOS + Xcode only)             |
 | `migrate.sh`     | Pull projects and config from an old Mac via SSH        |
+| `pg-migrate.sh`  | Copy all PostgreSQL databases from an old Mac           |
 | `install.sh`     | One-shot machine bootstrap                              |
 | `configure.zsh`  | Injects shell init into `~/.zshrc`, creates symlinks    |
 | `settings.zsh`   | zsh options (history, `setopt`)                         |

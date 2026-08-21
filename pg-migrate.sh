@@ -155,6 +155,54 @@ shell_quote() {
 	printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
 }
 
+# Homebrew's postgresql@NN formulae are keg-only: only <tool>-NN symlinks reach
+# $BREW_PREFIX/bin, so the unsuffixed binaries live solely inside the keg. The
+# same probe runs locally and, over ssh, on the source machine.
+# shellcheck disable=SC2016  # the probe is a script for another shell to expand
+POSTGRES_BIN_PROBE='for prefix in /opt/homebrew /usr/local; do
+	for dir in "$prefix"/opt/postgresql@*/bin; do
+		[ -x "$dir/pg_dump" ] && printf "%s\n" "$dir"
+	done
+done
+exit 0'
+
+newest_postgres_bin() {
+	# Every path ends in postgresql@NN/bin, so sorting numerically on the field
+	# after the @ picks the newest major rather than the last one alphabetically.
+	sort -t @ -k 2 -n | tail -n 1
+}
+
+postgres_tools_present() {
+	local tool
+	for tool in pg_dump pg_restore psql pg_isready; do
+		command -v "$tool" >/dev/null 2>&1 || return 1
+	done
+	return 0
+}
+
+probe_local_database() {
+	psql -X -A -t -d "$1" -c 'SELECT 1' >/dev/null 2>&1
+}
+
+probe_source_database() {
+	remote_shell "psql -X -A -t -d $(shell_quote "$1") -c 'SELECT 1'" >/dev/null 2>&1
+}
+
+pick_maintenance_database() {
+	# psql with no -d connects to a database named after the user, which need not
+	# exist. template1 is always present; postgres is tried first because it is the
+	# conventional admin database and CREATE DATABASE runs against whichever wins.
+	local prober="$1"
+	local candidate
+	for candidate in postgres template1; do
+		if "$prober" "$candidate"; then
+			printf '%s\n' "$candidate"
+			return 0
+		fi
+	done
+	return 1
+}
+
 format_bytes() {
 	local bytes="$1"
 	awk -v bytes="$bytes" 'BEGIN {
@@ -165,21 +213,23 @@ format_bytes() {
 	}'
 }
 
+remote_shell() {
+	# A non-interactive ssh shell does not load the login PATH, so every remote
+	# command carries the PostgreSQL bin directory discovered during preflight.
+	# shellcheck disable=SC2029
+	ssh "$FROM" "$REMOTE_ENV$1"
+}
+
 remote_psql() {
 	local database="$1"
 	local query="$2"
-	local command
-	command="psql -X -A -t -F '\t' -d $(shell_quote "$database") -c $(shell_quote "$query")"
-	# shellcheck disable=SC2029
-	ssh "$FROM" "$command"
+	# The separator must reach psql as a real tab, not the two characters backslash-t,
+	# so that the callers' `IFS=<tab> read` actually splits the rows.
+	remote_shell "psql -X -A -t -F '	' -d $(shell_quote "$database") -c $(shell_quote "$query")"
 }
 
 remote_psql_default() {
-	local query="$1"
-	local command
-	command="psql -X -A -t -F '\t' -c $(shell_quote "$query")"
-	# shellcheck disable=SC2029
-	ssh "$FROM" "$command"
+	remote_psql "$SOURCE_MAINTENANCE_DATABASE" "$1"
 }
 
 database_selected() {
@@ -217,6 +267,8 @@ cleanup() {
 	fi
 }
 
+REMOTE_ENV=""
+SOURCE_MAINTENANCE_DATABASE=""
 SUMMARY=()
 FAILURES=()
 ONLY_DATABASES=()
@@ -241,17 +293,35 @@ split_list "$EXCLUDE" exclude
 trap cleanup EXIT
 
 info "Phase 0/4: Preflight"
+if ! postgres_tools_present; then
+	local_postgres_bin="$(printf '%s\n' "$POSTGRES_BIN_PROBE" | sh -s | newest_postgres_bin || true)"
+	if [ -n "$local_postgres_bin" ]; then
+		PATH="$local_postgres_bin:$PATH"
+		export PATH
+	fi
+fi
 for command in pg_dump pg_restore psql ssh; do
 	command -v "$command" >/dev/null 2>&1 || die "$command is required."
 done
 command -v pg_isready >/dev/null 2>&1 || die "pg_isready is required."
 pg_isready >/dev/null 2>&1 || die "The local PostgreSQL server is not accepting connections."
+destination_admin_database="$(pick_maintenance_database probe_local_database)" ||
+	die "No local maintenance database: neither postgres nor template1 accepts connections."
 
 if ! ssh -o BatchMode=yes "$FROM" true; then
 	die "Could not connect to $FROM. Remote Login may be off on the source Mac, or this machine's SSH key is not authorised there."
 fi
 
-destination_version_num="$(psql -X -A -t -c 'SHOW server_version_num')"
+remote_postgres_bin="$(printf '%s\n' "$POSTGRES_BIN_PROBE" | ssh "$FROM" /bin/sh -s | newest_postgres_bin || true)"
+if [ -n "$remote_postgres_bin" ]; then
+	REMOTE_ENV="export PATH=$(shell_quote "$remote_postgres_bin"):\$PATH; "
+fi
+remote_shell 'command -v psql >/dev/null && command -v pg_dump >/dev/null && command -v pg_dumpall >/dev/null' ||
+	die "psql, pg_dump and pg_dumpall are not reachable on $FROM, and no Homebrew postgresql@NN keg was found there."
+SOURCE_MAINTENANCE_DATABASE="$(pick_maintenance_database probe_source_database)" ||
+	die "No maintenance database on $FROM: neither postgres nor template1 accepts connections."
+
+destination_version_num="$(psql -X -A -t -d "$destination_admin_database" -c 'SHOW server_version_num')"
 source_version_num="$(remote_psql_default 'SHOW server_version_num')"
 destination_major=$((destination_version_num / 10000))
 source_major=$((source_version_num / 10000))
@@ -261,7 +331,7 @@ elif [ "$source_major" -lt "$destination_major" ]; then
 	warn "Destination PostgreSQL $destination_major is newer than source PostgreSQL $source_major; this restore direction is supported."
 fi
 
-database_rows="$(remote_psql_default "SELECT datname, pg_database_size(datname) FROM pg_database WHERE datallowconn AND datname <> 'template0' ORDER BY pg_database_size(datname) ASC")"
+database_rows="$(remote_psql_default "SELECT datname, pg_database_size(datname) FROM pg_database WHERE datallowconn AND NOT datistemplate ORDER BY pg_database_size(datname) ASC")"
 while IFS="	" read -r database database_size; do
 	[ -n "$database" ] || continue
 	ALL_DATABASES+=("$database")
@@ -274,13 +344,12 @@ $database_rows
 EOF
 [ "${#DATABASES[@]}" -gt 0 ] || die "No source databases matched the selection."
 source_admin_database="${DATABASES[0]}"
-destination_admin_database="$(psql -X -A -t -c 'SELECT current_database()')"
 
 source_extensions="${TMPDIR:-/tmp}/pg-migrate-source-extensions.$$"
 destination_extensions="${TMPDIR:-/tmp}/pg-migrate-destination-extensions.$$"
 TEMP_FILES+=("$source_extensions" "$destination_extensions")
 : >"$source_extensions"
-psql -X -A -t -F "	" -c 'SELECT name, default_version FROM pg_available_extensions' >"$destination_extensions"
+psql -X -A -t -F "	" -d "$destination_admin_database" -c 'SELECT name, default_version FROM pg_available_extensions' >"$destination_extensions"
 for database in "${ALL_DATABASES[@]}"; do
 	while IFS="	" read -r extension installed_version; do
 		[ -n "$extension" ] || continue
@@ -345,13 +414,14 @@ if "$dry_run"; then
 else
 	globals_stderr="${TMPDIR:-/tmp}/pg-migrate-globals-stderr.$$"
 	TEMP_FILES+=("$globals_stderr")
-	roles_before="$(psql -X -A -t -c 'SELECT count(*) FROM pg_roles')"
+	roles_before="$(psql -X -A -t -d "$destination_admin_database" -c 'SELECT count(*) FROM pg_roles')"
 	set +e
 	# Role password hashes are sensitive: stream them directly and capture errors.
-	ssh "$FROM" 'pg_dumpall --globals-only' | psql -X 2>"$globals_stderr" >/dev/null
+	remote_shell "pg_dumpall --globals-only -l $(shell_quote "$SOURCE_MAINTENANCE_DATABASE")" |
+		psql -X -d "$destination_admin_database" 2>"$globals_stderr" >/dev/null
 	globals_status=$?
 	set -e
-	roles_after="$(psql -X -A -t -c 'SELECT count(*) FROM pg_roles')"
+	roles_after="$(psql -X -A -t -d "$destination_admin_database" -c 'SELECT count(*) FROM pg_roles')"
 	roles_created=$((roles_after - roles_before))
 	genuine_errors="$(grep -Ev 'role ".*" already exists' "$globals_stderr" |
 		grep -Ec '(^|: )(ERROR|FATAL):' || true)"
@@ -377,7 +447,7 @@ for database in "${DATABASES[@]}"; do
 	IFS="	" read -r database_encoding database_collation database_ctype database_owner <<EOF
 $database_metadata
 EOF
-	local_exists="$(psql -X -A -t -c "SELECT count(*) FROM pg_database WHERE datname = $(sql_quote "$database")")"
+	local_exists="$(psql -X -A -t -d "$destination_admin_database" -c "SELECT count(*) FROM pg_database WHERE datname = $(sql_quote "$database")")"
 	if [ "$local_exists" -eq 0 ]; then
 		create_sql="SELECT format('CREATE DATABASE %I OWNER %I ENCODING %L LC_COLLATE %L LC_CTYPE %L TEMPLATE template0', $(sql_quote "$database"), $(sql_quote "$database_owner"), $(sql_quote "$database_encoding"), $(sql_quote "$database_collation"), $(sql_quote "$database_ctype")) \\gexec"
 		if "$dry_run"; then
@@ -413,8 +483,7 @@ EOF
 		else
 			rm -f "$part_file"
 			set +e
-			# shellcheck disable=SC2029
-			ssh "$FROM" "$remote_dump" >"$part_file"
+			remote_shell "$remote_dump" >"$part_file"
 			dump_status=$?
 			set -e
 			if [ "$dump_status" -ne 0 ]; then

@@ -43,6 +43,10 @@ authenticates with GitHub, clones the dotfiles repo and, when `AI_TEAM_REPO` is
 set, the shared-context repo, then hands off to `install.sh`.
 It is idempotent and needs your sudo password plus a browser login partway
 through. Pass `--dry-run` to preview every action without changing the machine.
+Pass `--config-only` to set up a second user account on an already-configured
+machine. It checks out the dotfiles, configures git identity, adds the per-user
+Homebrew shell init, and runs `configure.zsh`, with no package installation, no
+sudo, and no GitHub login. This mode also implies `--no-ai-team`.
 
 If you already have the prerequisites and prefer to clone the repo yourself:
 

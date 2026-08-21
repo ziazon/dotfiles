@@ -32,6 +32,9 @@ Usage: migrate.sh --from USER@HOST [options]
   --rewrite-only     Skip transfer; run rewrite against what is already local
   --dry-run          Preview everything; change nothing
   --help
+
+Exit 23/24 from rsync is expected and non-fatal when active source files move.
+Re-running is incremental and picks up files that changed or vanished.
 EOF
 }
 
@@ -116,6 +119,16 @@ run() {
 	"$@"
 }
 
+run_status() {
+	printf '\033[38;5;%sm' "$COLOR_INFO"
+	printf ' %q' "$@"
+	printf '\033[0m\n'
+	if "$dry_run"; then
+		return 0
+	fi
+	"$@" || return $?
+}
+
 record() {
 	SUMMARY+=("$1")
 }
@@ -123,6 +136,37 @@ record() {
 warn() {
 	printf '\033[38;5;%sm%s\033[0m\n' "$COLOR_WARN" "$*"
 	record "warning: $*"
+}
+
+classify_rsync_status() {
+	local set_name="$1"
+	local status="$2"
+	case "$status" in
+	0)
+		SET_COMPLETED+=("$set_name")
+		;;
+	23 | 24)
+		warn "$set_name completed with rsync exit $status: some source files changed or vanished during transfer; re-running will pick them up."
+		SET_WARNINGS+=("$set_name")
+		;;
+	*)
+		FAILURES+=("$set_name failed with rsync exit $status")
+		SET_FAILURES+=("$set_name (rsync exit $status)")
+		;;
+	esac
+}
+
+merge_rsync_status() {
+	local status="$1"
+	case "$status" in
+	0) ;;
+	23 | 24)
+		case "$SET_RSYNC_STATUS" in
+		0) SET_RSYNC_STATUS="$status" ;;
+		esac
+		;;
+	*) SET_RSYNC_STATUS="$status" ;;
+	esac
 }
 
 set_selected() {
@@ -166,11 +210,19 @@ sync_dir() {
 	shift 2
 	run mkdir -p "$local_path"
 	if "$dry_run"; then
-		run "$RSYNC_BIN" -n -aH --partial --info=progress2 --human-readable "$@" \
-			"$FROM:$remote_path/" "$local_path/"
+		if run_status "$RSYNC_BIN" -n -aH --partial --info=progress2 --human-readable "$@" \
+			"$FROM:$remote_path/" "$local_path/"; then
+			LAST_RSYNC_STATUS=0
+		else
+			LAST_RSYNC_STATUS=$?
+		fi
 	else
-		run "$RSYNC_BIN" -aH --partial --info=progress2 --human-readable "$@" \
-			"$FROM:$remote_path/" "$local_path/"
+		if run_status "$RSYNC_BIN" -aH --partial --info=progress2 --human-readable "$@" \
+			"$FROM:$remote_path/" "$local_path/"; then
+			LAST_RSYNC_STATUS=0
+		else
+			LAST_RSYNC_STATUS=$?
+		fi
 	fi
 }
 
@@ -195,8 +247,14 @@ cleanup() {
 
 SUMMARY=()
 FAILURES=()
+SET_COMPLETED=()
+SET_WARNINGS=()
+SET_FAILURES=()
+SET_SKIPPED=()
 REPAIRED_WORKTREES=()
 TEMP_FILES=()
+LAST_RSYNC_STATUS=0
+SET_RSYNC_STATUS=0
 trap cleanup EXIT
 
 info "Phase 0/6: Preflight"
@@ -252,11 +310,14 @@ if ! "$rewrite_only" && set_selected projects; then
 		.ruff_cache/ target/ .next/ .nuxt/ .output/ .turbo/ .parcel-cache/ \
 		coverage/ .pnpm-store/ .yarn/cache/ Pods/ .gradle/ .DS_Store '*.log'
 	sync_dir "$SRC_HOME/projects" "$DST_HOME/projects" --exclude-from="$projects_excludes"
-	record "transferred: projects"
+	classify_rsync_status projects "$LAST_RSYNC_STATUS"
+else
+	SET_SKIPPED+=("projects")
 fi
 
 if ! "$rewrite_only" && set_selected configs; then
 	info "Phase 2/6: Configs"
+	SET_RSYNC_STATUS=0
 	for config_dir in .claude .codex .cursor .gemini .copilot .gitkraken .gk .config; do
 		if ! remote_dir_exists "$config_dir"; then
 			record "skipped: $config_dir (not present on source)"
@@ -279,6 +340,7 @@ if ! "$rewrite_only" && set_selected configs; then
 		*) run write_lines "$excludes" .DS_Store ;;
 		esac
 		sync_dir "$SRC_HOME/$config_dir" "$DST_HOME/$config_dir" --exclude-from="$excludes"
+		merge_rsync_status "$LAST_RSYNC_STATUS"
 		record "transferred: $config_dir"
 	done
 
@@ -290,23 +352,37 @@ if ! "$rewrite_only" && set_selected configs; then
 			record "skipped: .ai-team (git clone is authoritative)"
 		else
 			sync_dir "$SRC_HOME/.ai-team" "$DST_HOME/.ai-team"
+			merge_rsync_status "$LAST_RSYNC_STATUS"
 			warn "uncommitted .ai-team shared-context changes were carried over; commit them."
 		fi
 	else
 		record "skipped: .ai-team (not present on source)"
 	fi
+	classify_rsync_status configs "$SET_RSYNC_STATUS"
+else
+	SET_SKIPPED+=("configs")
 fi
 
 if ! "$rewrite_only" && set_selected secrets; then
 	info "Phase 3/6: Secrets"
+	SET_RSYNC_STATUS=0
 	for secret_file in .env/work-stuff.zsh .claude/hooks/pushover.env; do
 		if remote_file_exists "$secret_file"; then
 			run mkdir -p "$(dirname "$DST_HOME/$secret_file")"
 			if "$dry_run"; then
-				run "$RSYNC_BIN" -n -a --human-readable "$FROM:$SRC_HOME/$secret_file" "$DST_HOME/$secret_file"
+				if run_status "$RSYNC_BIN" -n -a --human-readable "$FROM:$SRC_HOME/$secret_file" "$DST_HOME/$secret_file"; then
+					LAST_RSYNC_STATUS=0
+				else
+					LAST_RSYNC_STATUS=$?
+				fi
 			else
-				run "$RSYNC_BIN" -a --human-readable "$FROM:$SRC_HOME/$secret_file" "$DST_HOME/$secret_file"
+				if run_status "$RSYNC_BIN" -a --human-readable "$FROM:$SRC_HOME/$secret_file" "$DST_HOME/$secret_file"; then
+					LAST_RSYNC_STATUS=0
+				else
+					LAST_RSYNC_STATUS=$?
+				fi
 			fi
+			merge_rsync_status "$LAST_RSYNC_STATUS"
 			record "transferred: $secret_file"
 		else
 			record "skipped: $secret_file (not present on source)"
@@ -315,6 +391,7 @@ if ! "$rewrite_only" && set_selected secrets; then
 	for secret_dir in .aws .gnupg; do
 		if remote_dir_exists "$secret_dir"; then
 			sync_dir "$SRC_HOME/$secret_dir" "$DST_HOME/$secret_dir"
+			merge_rsync_status "$LAST_RSYNC_STATUS"
 			record "transferred: $secret_dir"
 		else
 			record "skipped: $secret_dir (not present on source)"
@@ -326,13 +403,18 @@ if ! "$rewrite_only" && set_selected secrets; then
 	fi
 	info "Deliberately skipped ~/.ssh; this machine keeps its fresh per-machine key."
 	record "skipped: .ssh (per-machine key retained)"
+	classify_rsync_status secrets "$SET_RSYNC_STATUS"
+else
+	SET_SKIPPED+=("secrets")
 fi
 
 if "$no_rewrite"; then
 	record "skipped: path rewrite (--no-rewrite)"
+	REWRITE_OUTCOME="skipped (--no-rewrite)"
 elif ! "$rewrite_needed"; then
 	info "Phase 4/6: Rewrite is unnecessary because source and destination homes match."
 	record "skipped: path rewrite (home directories match)"
+	REWRITE_OUTCOME="skipped (home directories match)"
 else
 	info "Phase 4/6: Rewrite paths"
 	encoded_src="$(printf '%s' "$SRC_HOME" | sed 's#[/.]#-#g')"
@@ -406,6 +488,7 @@ else
 		fi
 	done < <(find "$DST_HOME/projects" -type d -path '*/.git/worktrees' -prune 2>/dev/null)
 	record "repaired: $repaired_repos repositories with linked worktrees"
+	REWRITE_OUTCOME="completed"
 fi
 
 info "Phase 5/6: Dependency report"
@@ -485,6 +568,29 @@ if [ "${#REPAIRED_WORKTREES[@]}" -gt 0 ]; then
 	done
 fi
 record "verified: $worktree_failures repaired worktree failures"
+
+ok "Set outcomes:"
+if [ "${#SET_COMPLETED[@]}" -gt 0 ]; then
+	for set_name in "${SET_COMPLETED[@]}"; do
+		printf '  completed: %s\n' "$set_name"
+	done
+fi
+if [ "${#SET_WARNINGS[@]}" -gt 0 ]; then
+	for set_name in "${SET_WARNINGS[@]}"; do
+		printf '  completed with vanished-file warning: %s\n' "$set_name"
+	done
+fi
+if [ "${#SET_FAILURES[@]}" -gt 0 ]; then
+	for set_name in "${SET_FAILURES[@]}"; do
+		printf '  failed: %s\n' "$set_name"
+	done
+fi
+if [ "${#SET_SKIPPED[@]}" -gt 0 ]; then
+	for set_name in "${SET_SKIPPED[@]}"; do
+		printf '  skipped: %s\n' "$set_name"
+	done
+fi
+printf '  path rewrite: %s\n' "$REWRITE_OUTCOME"
 
 ok "Transferred, skipped, or verified:"
 if [ "${#SUMMARY[@]}" -gt 0 ]; then

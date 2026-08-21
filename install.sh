@@ -86,12 +86,10 @@ if ! command -v rustc >/dev/null 2>&1; then
 fi
 export PATH="$HOME/.cargo/bin:$PATH"
 
-# Rust-based CLI tools (aliased in aliases.zsh)
+# Other Rust-based CLI tools are installed as Homebrew formulae.
 if command -v cargo >/dev/null 2>&1; then
   # prettydiff 0.9.0 is library-only; 0.6.2 is the last version with the binary used by the diff alias.
-  for crate in bat du-dust eza prettydiff@0.6.2 procs ripgrep; do
-    cargo install --locked "$crate" || warn "cargo failed to install $crate."
-  done
+  cargo install --locked prettydiff@0.6.2 || warn "cargo failed to install prettydiff@0.6.2."
 else
   warn "cargo is missing; skipped installing Rust-based CLI tools."
 fi

@@ -10,7 +10,7 @@ On a machine with nothing but macOS and Xcode, run:
 ```bash
 /bin/bash -c \
   "$(curl -fsSL \
-    https://raw.githubusercontent.com/ziazon/dotfiles/master/bootstrap.sh)"
+    https://raw.githubusercontent.com/ziazon/dotfiles/main/bootstrap.sh)"
 ```
 
 ### Bootstrap options
@@ -34,7 +34,7 @@ GIT_NAME="Your Name" GIT_EMAIL=you@example.com \
   AI_TEAM_REPO=git@github.com:you/ai-team.git \
   /bin/bash -c \
   "$(curl -fsSL \
-    https://raw.githubusercontent.com/ziazon/dotfiles/master/bootstrap.sh)"
+    https://raw.githubusercontent.com/ziazon/dotfiles/main/bootstrap.sh)"
 ```
 
 `bootstrap.sh` checks the Xcode command line tools, installs Rosetta,

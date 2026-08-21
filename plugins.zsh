@@ -99,7 +99,10 @@ function _makefile_targets {
 complete -F _makefile_targets make
 
 # fzf key bindings + completion (fzf >= 0.48)
-command -v fzf >/dev/null 2>&1 && source <(fzf --zsh)
+# `command -v` proves the file is executable, not that it can run on this CPU; a
+# binary carried over from an Intel Mac passes the check and then fails. Discard
+# stderr so a broken tool doesn't spam every shell start.
+command -v fzf >/dev/null 2>&1 && source <(fzf --zsh 2>/dev/null)
 
 
 # --- zinit (plugin manager) ---------------------------------------------------

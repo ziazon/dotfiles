@@ -13,9 +13,34 @@ On a machine with nothing but macOS and Xcode, run:
     https://raw.githubusercontent.com/ziazon/dotfiles/master/bootstrap.sh)"
 ```
 
+### Bootstrap options
+
+`bootstrap.sh` honors these environment variables:
+
+- `GIT_NAME`: global Git author name. When unset, uses the existing global Git
+  name or prompts for one.
+- `GIT_EMAIL`: global Git author email. When unset, uses the existing global Git
+  email or prompts for one.
+- `ENV_REPO`: dotfiles repository to clone. When unset, uses the origin of an
+  existing `~/.env` worktree, then falls back to this repository.
+- `AI_TEAM_REPO`: optional shared-context repository. When unset, that clone and
+  installer are skipped.
+- `SSH_KEY`: SSH private-key path. When unset, uses `~/.ssh/id_ed25519`.
+
+Set them inline before the same curl invocation, for example:
+
+```bash
+GIT_NAME="Your Name" GIT_EMAIL=you@example.com \
+  AI_TEAM_REPO=git@github.com:you/ai-team.git \
+  /bin/bash -c \
+  "$(curl -fsSL \
+    https://raw.githubusercontent.com/ziazon/dotfiles/master/bootstrap.sh)"
+```
+
 `bootstrap.sh` checks the Xcode command line tools, installs Rosetta,
 Homebrew, git, and `gh`, configures git identity and an SSH key,
-authenticates with GitHub, clones both repos, then hands off to `install.sh`.
+authenticates with GitHub, clones the dotfiles repo and, when `AI_TEAM_REPO` is
+set, the shared-context repo, then hands off to `install.sh`.
 It is idempotent and needs your sudo password plus a browser login partway
 through. Pass `--dry-run` to preview every action without changing the machine.
 

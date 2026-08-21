@@ -65,11 +65,14 @@ while [ "$#" -gt 0 ]; do
 	shift
 done
 
-GIT_NAME="${GIT_NAME:-Zia Saidi}"
-GIT_EMAIL="${GIT_EMAIL:-zia.j.saidi@gmail.com}"
-GITHUB_USER="${GITHUB_USER:-ziazon}"
+GIT_NAME="${GIT_NAME:-}"
+GIT_EMAIL="${GIT_EMAIL:-}"
+if [ -z "${ENV_REPO:-}" ] &&
+	git -C "$HOME/.env" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+	ENV_REPO="$(git -C "$HOME/.env" remote get-url origin 2>/dev/null || true)"
+fi
 ENV_REPO="${ENV_REPO:-git@github.com:ziazon/dotfiles.git}"
-AI_TEAM_REPO="${AI_TEAM_REPO:-git@github.com:ziazon/ai-team.git}"
+AI_TEAM_REPO="${AI_TEAM_REPO:-}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 
 run() {
@@ -130,6 +133,40 @@ ensure_git_setting() {
 		warn "git $key is '$current'; leaving it unchanged (bootstrap default: '$desired')."
 		record "skipped: git $key (existing value retained)"
 	fi
+}
+
+resolve_git_identity() {
+	local key="$1"
+	local variable="$2"
+	local label="$3"
+	local value="${!variable}"
+	local attempts=0
+	local max_attempts=3
+	if [ -n "$value" ]; then
+		return 0
+	fi
+	value="$(git config --global --get "$key" 2>/dev/null || true)"
+	if [ -n "$value" ]; then
+		printf -v "$variable" '%s' "$value"
+		return 0
+	fi
+	if "$dry_run"; then
+		info "Would prompt for the global git $label ($key is not configured)."
+		printf -v "$variable" '%s' "<prompted git $label>"
+		return 0
+	fi
+	info "Your $label is needed to configure your global git identity."
+	while [ "$attempts" -lt "$max_attempts" ]; do
+		printf 'Git %s: ' "$label"
+		IFS= read -r value || value=""
+		if [ -n "$value" ]; then
+			printf -v "$variable" '%s' "$value"
+			return 0
+		fi
+		attempts=$((attempts + 1))
+		warn "Git $label cannot be empty; try again."
+	done
+	die "Git identity is required. Re-run with GIT_NAME=... GIT_EMAIL=... set."
 }
 
 SUMMARY=()
@@ -235,6 +272,8 @@ for formula in git gh; do
 done
 
 info "Step 5/14: git identity and defaults"
+resolve_git_identity user.name GIT_NAME name
+resolve_git_identity user.email GIT_EMAIL email
 ensure_git_setting user.name "$GIT_NAME"
 ensure_git_setting user.email "$GIT_EMAIL"
 ensure_git_setting init.defaultBranch main
@@ -358,6 +397,9 @@ info "Step 11/14: Clone ~/.ai-team"
 if "$no_ai_team"; then
 	info "Skipping ~/.ai-team (--no-ai-team)."
 	record "skipped: ~/.ai-team (--no-ai-team)"
+elif [ -z "$AI_TEAM_REPO" ]; then
+	info "No shared-context repo is configured; set AI_TEAM_REPO to enable it."
+	record "skipped: ~/.ai-team (AI_TEAM_REPO is not set)"
 elif [ -e "$HOME/.ai-team" ]; then
 	repo_is_expected "$HOME/.ai-team" "$AI_TEAM_REPO" || die "$HOME/.ai-team exists but is not the expected shared-context repository."
 	info "$HOME/.ai-team is already present; skipping clone."

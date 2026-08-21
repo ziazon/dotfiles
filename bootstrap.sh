@@ -423,8 +423,38 @@ fi
 info "Step 10/14: Clone ~/.env"
 if [ -e "$HOME/.env" ]; then
 	repo_is_expected "$HOME/.env" "$ENV_REPO" || die "$HOME/.env exists but is not the expected dotfiles repository."
-	info "$HOME/.env is already present; skipping clone."
-	record "already present: ~/.env"
+	# A migrated home directory can carry a stale checkout whose months-old Brewfile breaks installation.
+	info "$HOME/.env is already present; checking for updates."
+	run git -C "$HOME/.env" fetch origin
+	if ! env_upstream="$(git -C "$HOME/.env" rev-parse --abbrev-ref --symbolic-full-name "@{u}" 2>/dev/null)"; then
+		warn "$HOME/.env has no upstream branch; leaving it unchanged."
+		record "not updated: ~/.env (no upstream branch)"
+	elif [ -n "$(git -C "$HOME/.env" status --porcelain)" ]; then
+		warn "$HOME/.env has local changes; leaving it unchanged."
+		record "not updated: ~/.env (local changes)"
+	else
+		env_head_before="$(git -C "$HOME/.env" rev-parse HEAD)"
+		if run git -C "$HOME/.env" merge --ff-only "$env_upstream"; then
+			if "$dry_run" && [ "$env_head_before" != "$(git -C "$HOME/.env" rev-parse "$env_upstream")" ]; then
+				if git -C "$HOME/.env" merge-base --is-ancestor HEAD "$env_upstream"; then
+					record "would update: ~/.env"
+				else
+					warn "$HOME/.env could not be fast-forwarded to $env_upstream; leaving it unchanged."
+					record "not updated: ~/.env (fast-forward failed)"
+				fi
+			else
+				env_head_after="$(git -C "$HOME/.env" rev-parse HEAD)"
+				if [ "$env_head_before" = "$env_head_after" ]; then
+					record "already up to date: ~/.env"
+				else
+					record "updated: ~/.env"
+				fi
+			fi
+		else
+			warn "$HOME/.env could not be fast-forwarded to $env_upstream; leaving it unchanged."
+			record "not updated: ~/.env (fast-forward failed)"
+		fi
+	fi
 else
 	run git clone "$ENV_REPO" "$HOME/.env"
 	record "installed: ~/.env"

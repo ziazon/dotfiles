@@ -22,6 +22,12 @@ if [ -n "$BREW_PREFIX" ]; then
   PATH="$BREW_PREFIX/opt/findutils/libexec/gnubin:$PATH"  # GNU find/xargs
   PATH="$BREW_PREFIX/opt/grep/libexec/gnubin:$PATH"       # GNU grep
   PATH="$BREW_PREFIX/opt/sqlite/bin:$PATH"
+  # postgresql@NN is keg-only: brew links only <tool>-NN into bin, so the keg's
+  # own bin has to be on PATH for a bare `psql`/`pg_dump`. Newest major wins.
+  for pg_bin in "$BREW_PREFIX"/opt/postgresql@*/bin(NOn[1]); do
+    PATH="$pg_bin:$PATH"
+  done
+  unset pg_bin
   PATH="$BREW_PREFIX/sbin:$PATH"
 fi
 PATH="$HOME/.cargo/bin:$PATH"     # rust tools (bat, eza, rg, ...)

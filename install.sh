@@ -55,6 +55,16 @@ brew_bundle_check_output="$(brew bundle check --file="$HOME/.env/Brewfile" --ver
 brew_bundle_check_status=$?
 printf '%s\n' "$brew_bundle_check_output"
 
+# A transient per-entry failure can leave packages missing even after brew bundle continues.
+if [ "$brew_bundle_check_status" -ne 0 ]; then
+  printf '\033[38;5;214mHomebrew entries are missing; retrying brew bundle once.\033[0m\n'
+  brew bundle --file="$HOME/.env/Brewfile"
+  brew_bundle_status=$?
+  brew_bundle_check_output="$(brew bundle check --file="$HOME/.env/Brewfile" --verbose 2>&1)"
+  brew_bundle_check_status=$?
+  printf '%s\n' "$brew_bundle_check_output"
+fi
+
 if [ "$brew_bundle_status" -ne 0 ] || [ "$brew_bundle_check_status" -ne 0 ]; then
   printf '\033[38;5;214mWARNING: Homebrew did not install every Brewfile entry:\033[0m\n'
   if [ "$brew_bundle_status" -ne 0 ]; then

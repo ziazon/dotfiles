@@ -41,6 +41,7 @@ brew "ucspi-tcp"
 brew "lynx"
 brew "magic-wormhole"    # send files/text between machines
 brew "speedtest-cli"
+brew "fswatch"           # monitor filesystem change events
 
 ## Git & dev tooling
 brew "git"

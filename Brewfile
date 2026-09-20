@@ -153,7 +153,7 @@ brew "docker-compose"
 brew "colima"            # run `colima start` to bring up the container engine
 
 ## Casks — GUI apps, editors, terminals & AI tooling
-cask "cursor"            # primary IDE
+cask "zed"               # primary IDE; the cask also links the `zed` CLI onto PATH
 cask "ghostty"           # primary terminal
 cask "claude"            # Claude desktop app
 cask "claude-code"       # Claude Code CLI

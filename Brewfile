@@ -81,7 +81,7 @@ brew "docutils"
 brew "sphinx-doc"
 
 ## Databases & services
-brew "postgresql@17", restart_service: :changed
+brew "postgresql@18", restart_service: :changed
 brew "postgis"
 brew "mysql"
 brew "mysql-client"

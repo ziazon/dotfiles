@@ -583,6 +583,13 @@ if [ "${#FAILURES[@]}" -gt 0 ]; then
 		warn "⚠ $failure"
 	done
 fi
+# The keg on PATH names the formula to restart (postgresql@NN); fall back to the
+# major this repo pins in the Brewfile when pg_dump resolves somewhere else.
+pg_formula="postgresql@18"
+pg_dump_bin="$(command -v pg_dump || true)"
+case "$pg_dump_bin" in
+	*/opt/postgresql@*/bin/pg_dump) pg_formula="$(basename "$(dirname "$(dirname "$pg_dump_bin")")")" ;;
+esac
 printf '%s\n' \
-	"📋 brew services restart postgresql@17 (if the server needs a restart)" \
+	"📋 brew services restart $pg_formula (if the server needs a restart)" \
 	"📋 delete $STAGE when retained dumps are no longer needed"

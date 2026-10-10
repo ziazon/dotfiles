@@ -16,7 +16,7 @@ alias python-env="python -m venv .venv"
 # alias cat="bat"
 alias ls="eza -g --ignore-glob __pycache__"
 alias ll='ls -la'
-alias diff="prettydiff"
+command -v prettydiff >/dev/null 2>&1 && alias diff="prettydiff"
 # alias ps="procs"
 alias tree="eza -Tla --extended --git-ignore -I=.git"
 alias du='dust'

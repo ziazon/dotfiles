@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Bootstrap a new macOS machine from scratch.
-#   1. Installs the Xcode CLT, Rosetta 2, Homebrew, git, and GitHub CLI
+#   1. Installs the Xcode CLT, Rosetta 2, Homebrew (MacPorts on Intel), git, and GitHub CLI
 #   2. Configures git identity, an SSH key, and GitHub authentication
 #   3. Clones ~/.env and the private ~/.ai-team shared-context repo
 #   4. Runs install.sh, then installs and verifies the shared AI-team context
@@ -349,64 +349,128 @@ elif [ "$(uname -m)" = "arm64" ]; then
 	record "already present: Rosetta 2"
 fi
 
-# Homebrew under the other architecture prefix cannot run natively and is never accepted.
+# Homebrew no longer installs on Intel Macs, so Intel machines get MacPorts and
+# a slim CLI-only setup (ports.txt) instead of the full Brewfile.
 if [ "$(uname -m)" = "arm64" ]; then
+	PKG_MGR=homebrew
 	BREW_PREFIX=/opt/homebrew
 else
+	PKG_MGR=macports
 	BREW_PREFIX=/usr/local
 fi
 BREW_BIN="$BREW_PREFIX/bin/brew"
+PORT_BIN=/opt/local/bin/port
 
-info "Step 3/14: Homebrew"
-if brew_is_usable; then
-	record "already present: Homebrew"
-elif "$config_only"; then
-	die "Homebrew must already be installed on the machine for --config-only."
-else
-	if [ "$(uname -m)" = "arm64" ] && [ -e /usr/local/bin/brew ]; then
-		warn "Ignoring Intel Homebrew at /usr/local; installing native Homebrew at $BREW_PREFIX."
-		record "ignored: Intel Homebrew at /usr/local"
-	fi
+port_is_usable() { [ -x "$PORT_BIN" ] && "$PORT_BIN" version >/dev/null 2>&1; }
+
+# MacPorts ships one .pkg per macOS release; pick the newest one for this OS.
+install_macports() {
+	local os_version os_key api_json pkg_url pkg_file
+	os_version="$(sw_vers -productVersion)"
+	case "$os_version" in
+	10.*) os_key="$(printf '%s' "$os_version" | cut -d. -f1-2)" ;;
+	*) os_key="$(printf '%s' "$os_version" | cut -d. -f1)" ;;
+	esac
+	api_json="$(curl -fsSL https://api.github.com/repos/macports/macports-base/releases/latest)"
+	pkg_url="$(printf '%s\n' "$api_json" |
+		grep -oE '"browser_download_url": *"[^"]+-'"$os_key"'-[A-Za-z]+\.pkg"' |
+		head -n1 | sed -E 's/.*"(https[^"]+)"/\1/')"
+	[ -n "$pkg_url" ] || die "No MacPorts installer found for macOS $os_version; see https://www.macports.org/install.php."
 	if "$dry_run"; then
-		# Show the literal command without downloading it.
-		# shellcheck disable=SC2016
-		info ' /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+		info " curl -fsSL -o <tmp>.pkg $pkg_url && sudo installer -pkg <tmp>.pkg -target /"
+		return 0
+	fi
+	pkg_file="$(mktemp -d)/macports.pkg"
+	curl -fsSL -o "$pkg_file" "$pkg_url"
+	sudo installer -pkg "$pkg_file" -target /
+	rm -f "$pkg_file"
+}
+
+if [ "$PKG_MGR" = macports ]; then
+	info "Step 3/14: MacPorts (Intel Mac; Homebrew no longer supports Intel)"
+	if port_is_usable; then
+		record "already present: MacPorts"
+	elif "$config_only"; then
+		die "MacPorts must already be installed on the machine for --config-only."
 	else
-		/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+		install_macports
+		record "installed: MacPorts"
+		if ! "$dry_run"; then
+			port_is_usable || die "MacPorts is not usable at $PORT_BIN after installation."
+		fi
 	fi
-	record "installed: Homebrew"
-	if ! "$dry_run"; then
-		brew_is_usable || die "Homebrew is not usable at $BREW_BIN after installation."
+	export PATH="/opt/local/bin:/opt/local/sbin:$PATH"
+	ZPROFILE_MARKER="### Begin MacPorts Init"
+	ZPROFILE_END="### End MacPorts Init"
+	ZPROFILE_EXPECT='/opt/local/bin:/opt/local/sbin'
+	read -r -d '' ZPROFILE_BLOCK <<EOF || true
+$ZPROFILE_MARKER
+export PATH="/opt/local/bin:/opt/local/sbin:\$PATH"
+$ZPROFILE_END
+EOF
+else
+	info "Step 3/14: Homebrew"
+	if brew_is_usable; then
+		record "already present: Homebrew"
+	elif "$config_only"; then
+		die "Homebrew must already be installed on the machine for --config-only."
+	else
+		if [ -e /usr/local/bin/brew ]; then
+			warn "Ignoring Intel Homebrew at /usr/local; installing native Homebrew at $BREW_PREFIX."
+			record "ignored: Intel Homebrew at /usr/local"
+		fi
+		if "$dry_run"; then
+			# Show the literal command without downloading it.
+			# shellcheck disable=SC2016
+			info ' /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+		else
+			/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+		fi
+		record "installed: Homebrew"
+		if ! "$dry_run"; then
+			brew_is_usable || die "Homebrew is not usable at $BREW_BIN after installation."
+		fi
 	fi
-fi
 
-if brew_is_usable; then
-	eval "$("$BREW_BIN" shellenv)"
-fi
-
-ZPROFILE_MARKER="### Begin Homebrew Init"
-read -r -d '' ZPROFILE_BLOCK <<EOF || true
+	if brew_is_usable; then
+		eval "$("$BREW_BIN" shellenv)"
+	fi
+	ZPROFILE_MARKER="### Begin Homebrew Init"
+	ZPROFILE_END="### End Homebrew Init"
+	ZPROFILE_EXPECT="$BREW_BIN shellenv"
+	read -r -d '' ZPROFILE_BLOCK <<EOF || true
 $ZPROFILE_MARKER
 eval "\$($BREW_BIN shellenv)"
-### End Homebrew Init
+$ZPROFILE_END
 EOF
+fi
+
 if [ -f "$HOME/.zprofile" ] && grep -qF "$ZPROFILE_MARKER" "$HOME/.zprofile"; then
-	if grep -qF "$BREW_BIN shellenv" "$HOME/.zprofile"; then
-		record "already present: Homebrew init in ~/.zprofile"
+	if grep -qF "$ZPROFILE_EXPECT" "$HOME/.zprofile"; then
+		record "already present: $PKG_MGR init in ~/.zprofile"
 	else
-		run replace_block "$HOME/.zprofile" "$ZPROFILE_BLOCK" "$ZPROFILE_MARKER" "### End Homebrew Init"
-		record "updated: Homebrew init in ~/.zprofile"
+		run replace_block "$HOME/.zprofile" "$ZPROFILE_BLOCK" "$ZPROFILE_MARKER" "$ZPROFILE_END"
+		record "updated: $PKG_MGR init in ~/.zprofile"
 	fi
 else
 	run touch "$HOME/.zprofile"
 	run append_block "$HOME/.zprofile" "$ZPROFILE_BLOCK"
-	record "installed: Homebrew init in ~/.zprofile"
+	record "installed: $PKG_MGR init in ~/.zprofile"
 fi
 
-info "Step 4/14: brew git and gh"
+info "Step 4/14: git and gh"
 if "$config_only"; then
-	info "Skipping brew git and gh installation (--config-only)."
-	record "skipped: brew git and gh installation (--config-only)"
+	info "Skipping git and gh installation (--config-only)."
+	record "skipped: git and gh installation (--config-only)"
+elif [ "$PKG_MGR" = macports ]; then
+	for port_name in git gh; do
+		if port_is_usable && "$PORT_BIN" -q installed "$port_name" | grep -q active; then
+			record "already present: port $port_name"
+		else
+			run sudo "$PORT_BIN" -N install "$port_name"
+			record "installed: port $port_name"
+		fi
+	done
 else
 	for formula in git gh; do
 		if [ -x "$BREW_BIN" ] && "$BREW_BIN" list --formula "$formula" >/dev/null 2>&1; then
@@ -586,6 +650,9 @@ if "$config_only"; then
 elif "$no_install"; then
 	info "Skipping ~/.env/install.sh (--no-install)."
 	record "skipped: ~/.env/install.sh (--no-install)"
+elif [ "$PKG_MGR" = macports ]; then
+	run "$HOME/.env/install-macports.sh"
+	record "installed: CLI ports and shell configuration"
 else
 	warn "install.sh asks for your sudo password immediately, then runs largely unattended for 45–90 minutes."
 	run "$HOME/.env/install.sh"

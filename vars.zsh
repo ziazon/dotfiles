@@ -30,6 +30,10 @@ if [ -n "$BREW_PREFIX" ]; then
   unset pg_bin
   PATH="$BREW_PREFIX/sbin:$PATH"
 fi
+# MacPorts (Intel Macs): GNU grep/find without the g- prefix.
+if [ -d /opt/local/bin ]; then
+  PATH="/opt/local/libexec/gnubin:$PATH"
+fi
 PATH="$HOME/.cargo/bin:$PATH"     # prettydiff, rustup, ad-hoc cargo installs
 PATH="$HOME/.local/bin:$PATH"     # poetry, pipx
 PATH="$PYENV_ROOT/bin:$PATH"

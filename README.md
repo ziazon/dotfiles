@@ -13,6 +13,14 @@ On a machine with nothing but macOS and Xcode, run:
     https://raw.githubusercontent.com/ziazon/dotfiles/main/bootstrap.sh)"
 ```
 
+### Intel Macs
+
+Homebrew no longer installs on Intel Macs. On Intel, `bootstrap.sh` detects the
+CPU and installs [MacPorts](https://www.macports.org) instead (the `.pkg` for
+your macOS version), then runs `install-macports.sh`, which installs only the
+CLI tools listed in `ports.txt` (git, gh, tmux, fzf, ripgrep, mosh, …) and wires
+up the shell. The Brewfile, language toolchains, and GUI apps are skipped.
+
 ### Bootstrap options
 
 `bootstrap.sh` honors these environment variables:

@@ -8,6 +8,11 @@
 #
 # Safe to re-run: brew bundle is idempotent and version installs skip if present.
 
+# Homebrew no longer installs on Intel Macs; use the slim MacPorts setup there.
+if [ "$(uname -m)" != "arm64" ]; then
+  exec "$HOME/.env/install-macports.sh" "$@"
+fi
+
 touch "$HOME/.zshrc"
 
 warnings=()

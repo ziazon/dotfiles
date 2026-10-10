@@ -1,0 +1,43 @@
+# MacPorts packages for Intel Macs (Homebrew no longer supports Intel).
+# A slim CLI-only set for a machine used mainly to ssh/screen-share elsewhere.
+# One port per line; install-macports.sh installs them.
+
+# shell + terminal
+zsh
+starship
+tmux
+direnv
+fzf
+mosh            # ssh that survives sleep/roaming
+
+# file + text tools (used by aliases.zsh)
+bat
+dust
+eza
+ripgrep
+tree
+watch
+jq
+pv
+rlwrap
+grep            # GNU grep (gnubin on PATH via vars.zsh)
+findutils       # GNU find/xargs
+rsync
+wget
+
+# networking
+httpie
+socat
+ssh-copy-id
+
+# git
+git
+gh
+git-delta
+git-lfs
+
+# editors + linting
+vim
+neovim
+shellcheck
+shfmt

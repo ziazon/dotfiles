@@ -108,3 +108,14 @@ brew bundle dump --file=~/.env/Brewfile --force
 | `starship.toml`  | [starship](https://starship.rs) prompt config           |
 | `tmux.conf`      | tmux config (+ TPM plugins)                             |
 | `work-stuff.zsh` | Machine-local secrets/overrides (git-ignored)           |
+
+## Sponsors
+
+<p align="center">
+  <a href="https://www.patreon.com/ziazizi">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ziazon/.github/main/assets/sponsors-dark.svg">
+      <img alt="Company sponsors of my open-source work. Become a sponsor on Patreon." src="https://raw.githubusercontent.com/ziazon/.github/main/assets/sponsors-light.svg" width="400">
+    </picture>
+  </a>
+</p>

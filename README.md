@@ -31,7 +31,7 @@ up the shell. The Brewfile, language toolchains, and GUI apps are skipped.
   email or prompts for one.
 - `ENV_REPO`: dotfiles repository to clone. When unset, uses the origin of an
   existing `~/.env` worktree, then falls back to this repository.
-- `AI_TEAM_REPO`: optional shared-context repository. When unset, that clone and
+- `FLIGHTDECK_STATE_REPO` (formerly `AI_TEAM_REPO`, still read): optional shared-context repository, cloned to `~/.flightdeck`. When unset, that clone and
   installer are skipped.
 - `SSH_KEY`: SSH private-key path. When unset, uses `~/.ssh/id_ed25519`.
 
@@ -39,7 +39,7 @@ Set them inline before the same curl invocation, for example:
 
 ```bash
 GIT_NAME="Your Name" GIT_EMAIL=you@example.com \
-  AI_TEAM_REPO=git@github.com:you/ai-team.git \
+  FLIGHTDECK_STATE_REPO=git@github.com:you/flightdeck-state.git \
   /bin/bash -c \
   "$(curl -fsSL \
     https://raw.githubusercontent.com/ziazon/dotfiles/main/bootstrap.sh)"
@@ -47,14 +47,14 @@ GIT_NAME="Your Name" GIT_EMAIL=you@example.com \
 
 `bootstrap.sh` checks the Xcode command line tools, installs Rosetta,
 Homebrew, git, and `gh`, configures git identity and an SSH key,
-authenticates with GitHub, clones the dotfiles repo and, when `AI_TEAM_REPO` is
+authenticates with GitHub, clones the dotfiles repo and, when `FLIGHTDECK_STATE_REPO` is
 set, the shared-context repo, then hands off to `install.sh`.
 It is idempotent and needs your sudo password plus a browser login partway
 through. Pass `--dry-run` to preview every action without changing the machine.
 Pass `--config-only` to set up a second user account on an already-configured
 machine. It checks out the dotfiles, configures git identity, adds the per-user
 Homebrew shell init, and runs `configure.zsh`, with no package installation, no
-sudo, and no GitHub login. This mode also implies `--no-ai-team`.
+sudo, and no GitHub login. This mode also implies `--no-flightdeck-state`.
 
 If you already have the prerequisites and prefer to clone the repo yourself:
 

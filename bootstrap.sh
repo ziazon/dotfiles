@@ -3,8 +3,8 @@
 # Bootstrap a new macOS machine from scratch.
 #   1. Installs the Xcode CLT, Rosetta 2, Homebrew (MacPorts on Intel), git, and GitHub CLI
 #   2. Configures git identity, an SSH key, and GitHub authentication
-#   3. Clones ~/.env and the private ~/.ai-team shared-context repo
-#   4. Runs install.sh, then installs and verifies the shared AI-team context
+#   3. Clones ~/.env and the private ~/.flightdeck shared-context repo (flightdeck-state)
+#   4. Runs install.sh, then installs and verifies the shared context
 #
 # Safe to re-run: every completed step is detected and skipped.
 #
@@ -36,7 +36,9 @@ trap 'err "Bootstrap failed at line $LINENO."; err "Re-run this script; it is id
 usage() {
 	cat <<'EOF'
 Usage: bootstrap.sh [options]
-  --no-ai-team   Skip cloning/installing the private ~/.ai-team repo
+  --no-flightdeck-state
+                 Skip cloning/installing the private ~/.flightdeck repo
+                 (--no-ai-team is a deprecated alias)
   --no-install   Stop after cloning; do not run ~/.env/install.sh
   --config-only  Configure one user without packages, sudo, or GitHub login
   --dry-run      Print every action without executing anything that mutates
@@ -44,14 +46,14 @@ Usage: bootstrap.sh [options]
 EOF
 }
 
-no_ai_team=false
+no_state=false
 no_install=false
 config_only=false
 dry_run=false
 
 while [ "$#" -gt 0 ]; do
 	case "$1" in
-	--no-ai-team) no_ai_team=true ;;
+	--no-flightdeck-state | --no-ai-team) no_state=true ;;
 	--no-install) no_install=true ;;
 	--config-only) config_only=true ;;
 	--dry-run) dry_run=true ;;
@@ -69,7 +71,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 if "$config_only"; then
-	no_ai_team=true
+	no_state=true
 fi
 
 GIT_NAME="${GIT_NAME:-}"
@@ -85,7 +87,8 @@ if [ -z "${ENV_REPO:-}" ]; then
 		ENV_REPO="git@github.com:ziazon/dotfiles.git"
 	fi
 fi
-AI_TEAM_REPO="${AI_TEAM_REPO:-}"
+# AI_TEAM_REPO is the deprecated name of FLIGHTDECK_STATE_REPO.
+FLIGHTDECK_STATE_REPO="${FLIGHTDECK_STATE_REPO:-${AI_TEAM_REPO:-}}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519}"
 
 run() {
@@ -621,25 +624,25 @@ else
 	record "installed: ~/.env"
 fi
 
-ai_team_ready=false
-info "Step 11/14: Clone ~/.ai-team"
-if "$no_ai_team"; then
-	info "Skipping ~/.ai-team (--no-ai-team)."
-	record "skipped: ~/.ai-team (--no-ai-team)"
-elif [ -z "$AI_TEAM_REPO" ]; then
-	info "No shared-context repo is configured; set AI_TEAM_REPO to enable it."
-	record "skipped: ~/.ai-team (AI_TEAM_REPO is not set)"
-elif [ -e "$HOME/.ai-team" ]; then
-	repo_is_expected "$HOME/.ai-team" "$AI_TEAM_REPO" || die "$HOME/.ai-team exists but is not the expected shared-context repository."
-	info "$HOME/.ai-team is already present; skipping clone."
-	ai_team_ready=true
-	record "already present: ~/.ai-team"
-elif run git clone "$AI_TEAM_REPO" "$HOME/.ai-team"; then
-	ai_team_ready=true
-	record "installed: ~/.ai-team"
+state_ready=false
+info "Step 11/14: Clone ~/.flightdeck"
+if "$no_state"; then
+	info "Skipping ~/.flightdeck (--no-flightdeck-state)."
+	record "skipped: ~/.flightdeck (--no-flightdeck-state)"
+elif [ -z "$FLIGHTDECK_STATE_REPO" ]; then
+	info "No shared-context repo is configured; set FLIGHTDECK_STATE_REPO to enable it."
+	record "skipped: ~/.flightdeck (FLIGHTDECK_STATE_REPO is not set)"
+elif [ -e "$HOME/.flightdeck" ]; then
+	repo_is_expected "$HOME/.flightdeck" "$FLIGHTDECK_STATE_REPO" || die "$HOME/.flightdeck exists but is not the expected shared-context repository."
+	info "$HOME/.flightdeck is already present; skipping clone."
+	state_ready=true
+	record "already present: ~/.flightdeck"
+elif run git clone "$FLIGHTDECK_STATE_REPO" "$HOME/.flightdeck"; then
+	state_ready=true
+	record "installed: ~/.flightdeck"
 else
-	warn "Could not clone the private ~/.ai-team repo; access may be denied. Continuing without it."
-	FAILURES+=("$HOME/.ai-team clone failed (private repository access denied or unavailable)")
+	warn "Could not clone the private ~/.flightdeck repo; access may be denied. Continuing without it."
+	FAILURES+=("$HOME/.flightdeck clone failed (private repository access denied or unavailable)")
 fi
 
 info "Step 12/14: Run dotfiles installer"
@@ -659,13 +662,13 @@ else
 	record "installed: dotfiles packages and shell configuration"
 fi
 
-info "Step 13/14: Install shared AI-team context"
-if "$ai_team_ready"; then
-	run "$HOME/.ai-team/scripts/install.sh" --tools all
-	run "$HOME/.ai-team/scripts/verify.sh" --tools all
-	record "installed and verified: shared AI-team context"
+info "Step 13/14: Install shared context"
+if "$state_ready"; then
+	run "$HOME/.flightdeck/scripts/install.sh" --tools all
+	run "$HOME/.flightdeck/scripts/verify.sh" --tools all
+	record "installed and verified: shared context"
 else
-	record "skipped: shared AI-team installer"
+	record "skipped: shared-context installer"
 fi
 
 info "Step 14/14: Final summary"

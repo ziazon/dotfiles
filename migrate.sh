@@ -344,19 +344,19 @@ if ! "$rewrite_only" && set_selected configs; then
 		record "transferred: $config_dir"
 	done
 
-	if remote_dir_exists .ai-team; then
-		if ! ai_team_status="$(ssh "$FROM" 'git -C "$HOME/.ai-team" status --porcelain')"; then
-			die "Could not inspect the source .ai-team git status."
+	if remote_dir_exists .flightdeck; then
+		if ! state_status="$(ssh "$FROM" 'git -C "$HOME/.flightdeck" status --porcelain')"; then
+			die "Could not inspect the source .flightdeck git status."
 		fi
-		if [ -z "$ai_team_status" ]; then
-			record "skipped: .ai-team (git clone is authoritative)"
+		if [ -z "$state_status" ]; then
+			record "skipped: .flightdeck (git clone is authoritative)"
 		else
-			sync_dir "$SRC_HOME/.ai-team" "$DST_HOME/.ai-team"
+			sync_dir "$SRC_HOME/.flightdeck" "$DST_HOME/.flightdeck"
 			merge_rsync_status "$LAST_RSYNC_STATUS"
-			warn "uncommitted .ai-team shared-context changes were carried over; commit them."
+			warn "uncommitted .flightdeck shared-context changes were carried over; commit them."
 		fi
 	else
-		record "skipped: .ai-team (not present on source)"
+		record "skipped: .flightdeck (not present on source)"
 	fi
 	classify_rsync_status configs "$SET_RSYNC_STATUS"
 else
@@ -605,6 +605,6 @@ if [ "${#FAILURES[@]}" -gt 0 ]; then
 fi
 printf '%s\n' \
 	"📋 restart running Claude Code sessions" \
-	"📋 $DST_HOME/.ai-team/scripts/install.sh --tools all" \
+	"📋 $DST_HOME/.flightdeck/scripts/install.sh --tools all" \
 	"📋 colima start" \
 	"📋 run $deps_script"

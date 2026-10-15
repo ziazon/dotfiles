@@ -50,6 +50,7 @@ brew "git-delta"         # nicer git diffs
 brew "git-flow"
 brew "git-lfs"
 brew "bfg"               # scrub secrets/large files from git history
+brew "gitleaks"          # secret scan run by the commit/push hooks
 brew "ctags"
 brew "cmake"
 brew "automake"
@@ -81,15 +82,14 @@ brew "docutils"
 brew "sphinx-doc"
 
 ## Databases & services
-brew "postgresql@18", restart_service: :changed
-brew "postgis"
+# PostgreSQL and Redis are served from the home-LAN server; this machine keeps clients only.
+brew "libpq"             # keg-only psql/pg_dump; vars.zsh puts its bin on PATH
+brew "pgcli"             # postgres CLI with autocomplete
 brew "mysql"
 brew "mysql-client"
-brew "redis", restart_service: :changed
 brew "rabbitmq"
 brew "nats-streaming-server"
 brew "nginx"
-brew "pgcli"             # postgres CLI with autocomplete
 
 ## Cloud, infra & Kubernetes
 brew "doctl"             # DigitalOcean CLI
@@ -163,7 +163,6 @@ cask "gitkraken"
 cask "google-chrome"     # claude-in-chrome MCP tools attach to this profile
 cask "postman"
 cask "gpg-suite"
-cask "karabiner-elements"
 cask "monitorcontrol"    # controls external monitor brightness and volume
 cask "rectangle"
 cask "slack"
@@ -171,3 +170,7 @@ cask "virtualbox"
 cask "xquartz"
 cask "font-fira-code"
 cask "font-source-code-pro-for-powerline"
+
+## Mac App Store — `mas` entries need a signed-in App Store
+brew "mas"               # Mac App Store CLI
+mas "Dashlane", id: 517914548

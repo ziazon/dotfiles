@@ -22,12 +22,9 @@ if [ -n "$BREW_PREFIX" ]; then
   PATH="$BREW_PREFIX/opt/findutils/libexec/gnubin:$PATH"  # GNU find/xargs
   PATH="$BREW_PREFIX/opt/grep/libexec/gnubin:$PATH"       # GNU grep
   PATH="$BREW_PREFIX/opt/sqlite/bin:$PATH"
-  # postgresql@NN is keg-only: brew links only <tool>-NN into bin, so the keg's
-  # own bin has to be on PATH for a bare `psql`/`pg_dump`. Newest major wins.
-  for pg_bin in "$BREW_PREFIX"/opt/postgresql@*/bin(NOn[1]); do
-    PATH="$pg_bin:$PATH"
-  done
-  unset pg_bin
+  # libpq is keg-only: its bin has to be on PATH for a bare `psql`/`pg_dump`.
+  # The PostgreSQL server itself runs on the home-LAN server, not here.
+  PATH="$BREW_PREFIX/opt/libpq/bin:$PATH"
   PATH="$BREW_PREFIX/sbin:$PATH"
 fi
 # MacPorts (Intel Macs): GNU grep/find without the g- prefix.

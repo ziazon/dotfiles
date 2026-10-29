@@ -111,6 +111,7 @@ brew "hashicorp/tap/vault"
 
 ## Media, images & documents
 brew "ffmpeg"
+brew "whisper.cpp"       # speech-to-text (whisper-cli); install.sh fetches its model
 brew "imagemagick"
 brew "poppler"
 brew "graphviz"
@@ -164,6 +165,7 @@ cask "google-chrome"     # claude-in-chrome MCP tools attach to this profile
 cask "postman"
 cask "gpg-suite"
 cask "monitorcontrol"    # controls external monitor brightness and volume
+cask "blackhole-2ch"     # virtual audio device for recording system audio
 cask "rectangle"
 cask "slack"
 cask "virtualbox"

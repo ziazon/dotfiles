@@ -137,6 +137,20 @@ else
   warn "go is missing; skipped installing gopls and staticcheck."
 fi
 
+# --- Whisper model ------------------------------------------------------------
+# whisper.cpp (Brewfile) is useless without a ggml model; small.en is ~490 MB.
+WHISPER_MODEL="$HOME/.local/share/whisper/ggml-small.en.bin"
+if [ ! -s "$WHISPER_MODEL" ]; then
+  mkdir -p "$(dirname "$WHISPER_MODEL")"
+  if curl -fL --proto '=https' -o "$WHISPER_MODEL.part" \
+    https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en.bin; then
+    mv "$WHISPER_MODEL.part" "$WHISPER_MODEL"
+  else
+    rm -f "$WHISPER_MODEL.part"
+    warn "failed to download the Whisper model to $WHISPER_MODEL."
+  fi
+fi
+
 # --- AWS CLI ------------------------------------------------------------------
 if ! command -v aws >/dev/null 2>&1; then
   curl "https://awscli.amazonaws.com/AWSCLIV2.pkg" -o "AWSCLIV2.pkg"

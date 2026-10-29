@@ -70,7 +70,8 @@ git clone git@github.com:ziazon/dotfiles.git .env && cd .env
    `/usr/local` on Intel).
 2. Installs every formula and cask in [`Brewfile`](Brewfile) via `brew bundle`.
 3. Installs language toolchains: Rust (rustup), Python 3.12 (pyenv),
-   Node LTS (nvm), and Go tools.
+   Node LTS (nvm), and Go tools, and downloads the `whisper.cpp` speech model
+   (`ggml-small.en.bin`) to `~/.local/share/whisper/` if it is missing.
 4. Wires up the shell via [`configure.zsh`](configure.zsh). On first shell
    start, [`plugins.zsh`](plugins.zsh) installs the
    [zinit](https://github.com/zdharma-continuum/zinit) zsh plugin manager.
@@ -88,6 +89,20 @@ To snapshot the current machine back into the Brewfile:
 ```bash
 brew bundle dump --file=~/.env/Brewfile --force
 ```
+
+### Recording system audio
+
+`blackhole-2ch` (a virtual audio device) doesn't appear until Core Audio
+restarts. Run this after installing it, or reboot:
+
+```bash
+sudo killall coreaudiod
+```
+
+To capture system audio while still hearing it, create a Multi-Output Device in
+Audio MIDI Setup that combines your speakers or headphones with BlackHole 2ch,
+and select it as the output. Record from BlackHole 2ch, then transcribe with
+`whisper-cli -m ~/.local/share/whisper/ggml-small.en.bin -f recording.wav`.
 
 ## Layout
 
